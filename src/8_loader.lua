@@ -128,7 +128,6 @@
 	end)
 end -- END OF RoClothes(Player)
 
--- Dedicated Isolated Function: Two-Stage Prompt (Pre-Downloader YES/NO, then Mesh Source Selector)
 local function StartRoClothesWithPrompt(targetPlayer)
 	local g = (type(getgenv) == "function" and getgenv()) or {}
 	local isfile_fn = isfile or (syn and syn.isfile) or (env and env.isfile) or (type(g.isfile) == "function" and g.isfile)
@@ -138,7 +137,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	local isfolder_fn = isfolder or (syn and syn.isfolder) or (env and env.isfolder) or (type(g.isfolder) == "function" and g.isfolder)
 	local request_fn = request or http_request or (syn and syn.request) or (fluxus and fluxus.request) or (http and http.request) or (type(g.request) == "function" and g.request)
 
-	-- Check if contents are already inside of the exploit folder:
 	local hasExploitContents = false
 	if isfile_fn then
 		local testFiles = {
@@ -167,7 +165,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 		end
 	end
 
-	-- Direct custom asset probe as in OLDRC.lua:
 	local customasset_fn = getcustomasset or getsynasset or (syn and syn.getcustomasset) or (fluxus and fluxus.getcustomasset) or (type(g.getcustomasset) == "function" and g.getcustomasset)
 	if not hasExploitContents and customasset_fn then
 		local testCands = {
@@ -188,7 +185,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 		end
 	end
 
-	-- Check for existing saved decision file "MyCurrentChoice" in exploit workspace:
 	local savedChoice = nil
 	if isfile_fn and readfile_fn then
 		pcall(function()
@@ -266,7 +262,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	grad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(16, 18, 24)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(26, 28, 38))}
 	grad.Rotation = -90
 
-	-- Top label: "Purrw Modded Roclothes 0.7.9"
 	local topLabel = Instance.new("TextLabel", modal)
 	topLabel.Size = UDim2.new(0.9, 0, 0.10, 0)
 	topLabel.Position = UDim2.new(0.05, 0, 0.05, 0)
@@ -278,7 +273,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	topLabel.TextStrokeColor3 = Color3.fromRGB(10, 10, 14)
 	topLabel.TextStrokeTransparency = 0.3
 
-	-- Main prompt question text
 	local title = Instance.new("TextLabel", modal)
 	title.Size = UDim2.new(0.9, 0, 0.20, 0)
 	title.Position = UDim2.new(0.05, 0, 0.15, 0)
@@ -289,7 +283,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	title.TextSize = 15
 	title.TextWrapped = true
 
-	-- Notice text
 	local noteLabel = Instance.new("TextLabel", modal)
 	noteLabel.Size = UDim2.new(0.92, 0, 0.22, 0)
 	noteLabel.Position = UDim2.new(0.04, 0, 0.74, 0)
@@ -300,13 +293,11 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	noteLabel.TextSize = 12
 	noteLabel.TextWrapped = true
 
-	-- Container for dynamic content
 	local contentFrame = Instance.new("Frame", modal)
 	contentFrame.Size = UDim2.new(0.9, 0, 0.36, 0)
 	contentFrame.Position = UDim2.new(0.05, 0, 0.36, 0)
 	contentFrame.BackgroundTransparency = 1
 
-	-- Function to show Stage 2: The Mesh Location Selector
 	local function showStage2()
 		contentFrame:ClearAllChildren()
 		title.Text = "Hey real quick wanna get the meshes from where"
@@ -396,7 +387,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 		exploitBtn.MouseButton1Click:Connect(function() selectAndLaunch("Exploit Workspace") end)
 	end
 
-	-- Function to run the Downloader when YES is chosen
 	local function runDownloader()
 		contentFrame:ClearAllChildren()
 		title.Text = "Downloading RClothesContent folder..."
@@ -504,11 +494,9 @@ local function StartRoClothesWithPrompt(targetPlayer)
 			pLabel.Text = "✅ Download Complete! (362/362 files)"
 			pLabel.TextColor3 = Color3.fromRGB(120, 255, 160)
 
-			-- Prompt option to continue or reinject:
 			noteLabel.Text = "Installed! You can continue, or if the script doesn't load reinject again and press YES"
 			task.wait(1.5)
 
-			-- Now show Continue button
 			contentFrame:ClearAllChildren()
 			local continueBtn = Instance.new("TextButton", contentFrame)
 			continueBtn.Size = UDim2.new(1, 0, 0.70, 0)
@@ -530,13 +518,11 @@ local function StartRoClothesWithPrompt(targetPlayer)
 		end)
 	end
 
-	-- If contents are already in exploit workspace, jump directly to Stage 2:
 	if hasExploitContents then
 		showStage2()
 		return
 	end
 
-	-- Stage 1: Build YES / NO buttons
 	local yesBtn = Instance.new("TextButton", contentFrame)
 	yesBtn.Size = UDim2.new(0.47, 0, 0.70, 0)
 	yesBtn.Position = UDim2.new(0, 0, 0.15, 0)
@@ -580,7 +566,6 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	end)
 end
 
--- Launch sequence
 local function launch()
 	local targetPlayer
 	if RS:IsStudio() then
