@@ -1,10 +1,3 @@
---[[
-    RoCustomClothes Master Entrypoint (init.lua)
-
-    Loads modular sections from GitHub (luauglazer/Meshes) or local executor workspace,
-    caches them locally, and compiles via loadstring to launch RoCustomClothes.
-]]
-
 local g = (type(getgenv) == "function" and getgenv()) or {}
 local readfile = readfile or (syn and syn.readfile) or g.readfile
 local isfile = isfile or (syn and syn.isfile) or g.isfile
