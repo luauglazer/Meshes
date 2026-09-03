@@ -1,10 +1,3 @@
---[[
-    RoCustomClothes Master Entrypoint (init.lua)
-
-    Loads modular sections from GitHub (luauglazer/Meshes) or local executor workspace,
-    caches them locally, and compiles via loadstring to launch RoCustomClothes.
-]]
-
 local g = (type(getgenv) == "function" and getgenv()) or {}
 local readfile = readfile or (syn and syn.readfile) or g.readfile
 local isfile = isfile or (syn and syn.isfile) or g.isfile
@@ -35,7 +28,6 @@ local sectionFiles = {
 
 local GITHUB_BASE = "https://raw.githubusercontent.com/luauglazer/Meshes/main/src/"
 
--- Robust HTTP fetcher supporting game:HttpGet and executor request APIs
 local function fetchUrl(url)
     local s, res = pcall(game.HttpGet, game, url)
     if s and type(res) == "string" and #res > 0 then
@@ -56,7 +48,6 @@ local function fetchUrl(url)
     return nil
 end
 
--- Locate local 'src' directory in the executor's workspace if present
 local function findSrcPrefix()
     if not (isfile and readfile) then return nil end
     local candidatePrefixes = {
@@ -104,17 +95,16 @@ local function loadFromLocal(prefix)
 end
 
 local function loadFromGitHub()
-    print("[RoCC] Pulling modular sections from GitHub (luauglazer/Meshes)...")
+    print("[RoC] Pulling modular sections from GitHub (luauglazer/Meshes)...")
     local chunks = {}
     for idx, file in ipairs(sectionFiles) do
-        print(string.format("[RoCC] Fetching section (%d/%d): %s...", idx, #sectionFiles, file))
+        print(string.format("[RoC] Fetching section (%d/%d): %s...", idx, #sectionFiles, file))
         local content = fetchUrl(GITHUB_BASE .. file)
         if not content or #content == 0 then
             return nil, "Failed to fetch " .. file .. " from GitHub"
         end
         table.insert(chunks, content)
 
-        -- Cache to workspace/src/ if file writing is supported
         if writefile and makefolder then
             pcall(function()
                 if isfolder and not isfolder("src") then
@@ -133,12 +123,6 @@ local function loadFromGitHub()
     return executeFunc
 end
 
--- Primary Loader Flow:
--- 1. If RoCC_ForceGitHub is set, pull from GitHub.
--- 2. If local 'src' is found in workspace, load from local.
--- 3. Otherwise, pull from GitHub and cache locally.
--- 4. If GitHub fails, fallback to local (if available).
-
 local executeFunc = nil
 local loadError = nil
 local srcPrefix = findSrcPrefix()
@@ -146,14 +130,14 @@ local srcPrefix = findSrcPrefix()
 if g.RoCC_ForceGitHub then
     executeFunc, loadError = loadFromGitHub()
     if not executeFunc and srcPrefix then
-        warn("[RoCC Warning] GitHub load failed: " .. tostring(loadError) .. ". Falling back to local workspace...")
+        warn("[RoC Warning] GitHub load failed: " .. tostring(loadError) .. ". Falling back to local workspace...")
         executeFunc, loadError = loadFromLocal(srcPrefix)
     end
 elseif srcPrefix then
     print(string.format("[RoCC] Found 'src' in workspace at: '%s'. Loading modular sections...", srcPrefix))
     executeFunc, loadError = loadFromLocal(srcPrefix)
     if not executeFunc then
-        warn("[RoCC Warning] Local compilation failed: " .. tostring(loadError) .. ". Attempting GitHub fallback...")
+        warn("[RoC Warning] Local compilation failed: " .. tostring(loadError) .. ". Attempting GitHub fallback...")
         executeFunc, loadError = loadFromGitHub()
     end
 else
@@ -163,7 +147,7 @@ end
 if not executeFunc then
     local separator = string.rep("=", 65)
     local msg = string.format(
-        "\n%s\n[RoCC Error] Failed to load RoCustomClothes modular sections!\n" ..
+        "\n%s\n[RoC Error] Failed to load RoClothes modular sections!\n" ..
         "Reason: %s\n" ..
         "Please ensure your internet connection is active, or place the 'src'\n" ..
         "folder inside your executor's workspace directory (e.g. 'workspace/src/').\n%s",
@@ -172,5 +156,5 @@ if not executeFunc then
     error(msg, 2)
 end
 
-print("[RoCC] Modular sections compiled successfully! Starting RoCustomClothes...")
+print("[RoC]  compiled successfully! Starting RoClothes...")
 executeFunc()
