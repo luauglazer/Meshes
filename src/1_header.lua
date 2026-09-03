@@ -1,11 +1,11 @@
 --[[	
 
-	/ ＲＯＣＬＯＴＨＥＳ
-	Version - 0.7.9:lerp()
-	Mod's Discord - discord.gg/k2HbJMY6Fr
+	/ ＲＯＣＬＯＴＨＥＳ I M P R O V E D BY PURRW
+	Version - 0.7.9 Improved
+	The real Mod's Discord - discord.gg/k2HbJMY6Fr
 	Unknowing's Discord - discord.gg/HBzvWE6Rp3
 	
-	| This script requires a LOCAL folder "RClothesContent" to be added in ROBLOX's content folder, or it'll self-destruct itself
+	| This script require the installation of RClothesContent which can be pulled from this repository or just downloaded inside of the script itself
 	
 	| RoClothes is a Client-Sided Exploiting Script, that allows the player to have nude BodyParts/Clothes
 	Can be used on any executor
@@ -22,7 +22,7 @@
 	
 	
 	original version 0.7
-	local version 0.7.9:lerp()
+	current version 0.7.9 Improved
 		
 
 
@@ -89,7 +89,7 @@ local HS = game:GetService("HttpService")
 local AssetSource = nil -- Shared across RoClothes and selector prompt
 
 function RoClothes(Player)
-	print("RoCC")
+	print("RoC")
 
 	--[[
 	--------------------------------------------------------------------------------------------------------------
