@@ -288,7 +288,7 @@ local function StartRoClothesWithPrompt(targetPlayer)
 	noteLabel.Position = UDim2.new(0.04, 0, 0.74, 0)
 	noteLabel.BackgroundTransparency = 1
 	noteLabel.Font = Enum.Font.Code
-	noteLabel.Text = "if the script doesn't load reinject again and press YES"
+	noteLabel.Text = "if the script doesn't load reinject again and press YES PS : If you just downloaded them go for Exploit Workspace"
 	noteLabel.TextColor3 = Color3.fromRGB(255, 185, 120)
 	noteLabel.TextSize = 12
 	noteLabel.TextWrapped = true
