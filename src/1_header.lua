@@ -1,11 +1,11 @@
 --[[	
 
-	/ ＲＯＣＬＯＴＨＥＳ I M P R O V E D BY PURRW
-	Version - 0.7.9 Improved
-	The real Mod's Discord - discord.gg/k2HbJMY6Fr
+	/ ＲＯＣＬＯＴＨＥＳ
+	Version - 0.7.9:lerp()
+	Mod's Discord - discord.gg/k2HbJMY6Fr
 	Unknowing's Discord - discord.gg/HBzvWE6Rp3
 	
-	| This script require the installation of RClothesContent which can be pulled from this repository or just downloaded inside of the script itself
+	| This script requires a LOCAL folder "RClothesContent" to be added in ROBLOX's content folder, or it'll self-destruct itself
 	
 	| RoClothes is a Client-Sided Exploiting Script, that allows the player to have nude BodyParts/Clothes
 	Can be used on any executor
@@ -22,7 +22,7 @@
 	
 	
 	original version 0.7
-	current version 0.7.9 Improved
+	local version 0.7.9:lerp()
 		
 
 
@@ -89,7 +89,7 @@ local HS = game:GetService("HttpService")
 local AssetSource = nil -- Shared across RoClothes and selector prompt
 
 function RoClothes(Player)
-	print("RoC")
+	print("RoCC")
 
 	--[[
 	--------------------------------------------------------------------------------------------------------------
@@ -534,7 +534,7 @@ function RoClothes(Player)
 		env.readfile = missing("function", readfile, missing("function", g.readfile, (syn and syn.readfile)))
 		env.loadfile = missing("function", loadfile, missing("function", g.loadfile, (syn and syn.loadfile)))
 		env.writefile = missing("function", writefile, missing("function", g.writefile, (syn and syn.writefile)))
-		env.delfile = missing("function", delfile, missing("function", g.delfile, (syn and syn.delfile)))
+		env.delfile = missing("function", delfile, missing("function", g.delfile, (syn and syn.delfile))) or (type(deletefile) == "function" and deletefile) or (type(g.deletefile) == "function" and g.deletefile)
 		env.listfiles = missing("function", listfiles, missing("function", g.listfiles, (syn and syn.listfiles)))
 		env.isfile = missing("function", isfile, missing("function", g.isfile, (syn and syn.isfile)))
 		env.makefolder = missing("function", makefolder, missing("function", g.makefolder, (syn and syn.makefolder)))

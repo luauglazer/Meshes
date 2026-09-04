@@ -219,9 +219,15 @@
 			if Process then return end
 
 			if KeybindDetect == true then
+				if Keycode.KeyCode == Enum.KeyCode.Escape or Keycode.KeyCode == Enum.KeyCode.Unknown then
+					KeybindDetect = false
+					GUIObject.KeybindButton.Text = (typeof(KEYBIND) == "EnumItem" and KEYBIND.Name) or tostring(KEYBIND):gsub("^Enum%.KeyCode%.", "")
+					return
+				end
 				KEYBIND = Keycode.KeyCode
-				GUIObject.KeybindButton.Text = string.sub(tostring(KEYBIND), 14, #tostring(KEYBIND))
+				GUIObject.KeybindButton.Text = (typeof(KEYBIND) == "EnumItem" and KEYBIND.Name) or tostring(KEYBIND):gsub("^Enum%.KeyCode%.", "")
 				KeybindDetect = false
+				Function.SaveSettings()
 			else
 				if Keycode.KeyCode == KEYBIND then
 					GUIObject.Screen.Enabled = not GUIObject.Screen.Enabled
@@ -229,15 +235,15 @@
 			end
 			if hpKeybindDetect == true then
 				hpKEYBIND = Keycode.KeyCode
-				--GUIObject.KeybindButton.Text = string.sub(tostring(hpKEYBIND), 14, #tostring(hpKEYBIND))
 				hpKeybindDetect = false
+				Function.SaveSettings()
 			elseif Keycode.KeyCode == hpKEYBIND then
 				HealFunction()
 			end
 			if dpKeybindDetect == true then
 				dpKEYBIND = Keycode.KeyCode
-				--GUIObject.KeybindButton.Text = string.sub(tostring(hpKEYBIND), 14, #tostring(hpKEYBIND))
 				dpKeybindDetect = false
+				Function.SaveSettings()
 			elseif Keycode.KeyCode == dpKEYBIND then
 				DamageFunction()
 			end
@@ -407,7 +413,7 @@
 	local aWhile = task.spawn(function()
 		while task.wait() do
 			local lP = game:GetService("Players").LocalPlayer
-			if PlayerData[lP.Name].FPerson == true then
+			if PlayerData[lP.Name] and PlayerData[lP.Name].FPerson == true then
 				PlayerData[lP.Name].updateCooldown = true
 				local ti = TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
 				local ti2 = TweenInfo.new(0.1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
@@ -489,6 +495,13 @@
 								TS:Create(human,ti,{CameraOffset = (rootpart.CFrame+Vector3.new(0,1.5,0)):PointToObjectSpace(hed.CFrame.p)}):Play()
 							end
 						end
+					end
+				end
+			else
+				if lP and lP.Character then
+					local human = lP.Character:FindFirstChildOfClass("Humanoid")
+					if human and human.CameraOffset.Magnitude > 0.001 then
+						human.CameraOffset = Vector3.new(0, 0, 0)
 					end
 				end
 			end

@@ -16,7 +16,8 @@
 		elseif typeof(value) == "CFrame" then
 			return {["CFrameComponents"] = {value:GetComponents()}}
 		elseif typeof(value) == "EnumItem" then
-			return {["EnumType"] = tostring(value.EnumType), ["Value"] = value.Value}
+			local enumType = tostring(value.EnumType):gsub("^Enum%.", "")
+			return {["EnumType"] = enumType, ["Value"] = value.Value, ["Name"] = value.Name}
 		elseif typeof(value) == "UDim2" then
 			return {["Scale"]={["X"] = value.X.Scale, ["Y"] = value.Y.Scale}, 
 				["Offset"]={["X"] = value.X.Offset, ["Y"] = value.Y.Offset}}
@@ -33,13 +34,198 @@
 			elseif value["CFrameComponents"] then
 				local c = value["CFrameComponents"]
 				return CFrame.new(table.unpack(c))
-			elseif value["EnumType"] and value["Value"] then
-				return Enum[value.EnumType]:FromValue(value.Value)
+			elseif value["EnumType"] and (value["Name"] or value["Value"]) then
+				local enumType = tostring(value.EnumType):gsub("^Enum%.", "")
+				local enumObj = Enum[enumType]
+				if enumObj then
+					if value["Name"] then
+						local s, res = pcall(function() return enumObj[value.Name] end)
+						if s and typeof(res) == "EnumItem" then
+							return res
+						end
+					end
+					if value["Value"] and enumObj.FromValue then
+						local s, res = pcall(function() return enumObj:FromValue(value.Value) end)
+						if s and typeof(res) == "EnumItem" then
+							return res
+						end
+					end
+				end
 			elseif value["Scale"] and value["Offset"] then
 				return UDim2.new(value.Scale.X, value.Offset.X, value.Scale.Y, value.Offset.Y)
 			end
 		end
 		return value,true
+	end
+
+	function Function.ResolveKeybind(val, fallback)
+		if typeof(val) == "EnumItem" then
+			return val
+		elseif typeof(val) == "table" then
+			local converted = Function.convertFromJSON(val)
+			if typeof(converted) == "EnumItem" then
+				return converted
+			end
+			if val.Name then
+				local s, res = pcall(function() return Enum.KeyCode[val.Name] end)
+				if s and typeof(res) == "EnumItem" then return res end
+			end
+			if val.Value then
+				local s, res = pcall(function() return Enum.KeyCode:FromValue(val.Value) end)
+				if s and typeof(res) == "EnumItem" then return res end
+			end
+		elseif typeof(val) == "string" then
+			local cleanName = tostring(val):gsub("^Enum%.KeyCode%.", ""):gsub("^KeyCode%.", "")
+			local s, res = pcall(function() return Enum.KeyCode[cleanName] end)
+			if s and typeof(res) == "EnumItem" then
+				return res
+			end
+		elseif typeof(val) == "number" then
+			local s, res = pcall(function() return Enum.KeyCode:FromValue(val) end)
+			if s and typeof(res) == "EnumItem" then
+				return res
+			end
+		end
+		return fallback
+	end
+
+	function Function.SaveSettings(showButtonFeedback)
+		local success, err = pcall(function()
+			if not env.writefile then return end
+
+			if env.makefolder then
+				local isfolderFn = env.isfolder or function() return false end
+				if not isfolderFn("RClothesLerp") then
+					pcall(env.makefolder, "RClothesLerp")
+				end
+				if not isfolderFn("RClothesLerp/Bundles") then
+					pcall(env.makefolder, "RClothesLerp/Bundles")
+				end
+			end
+
+			local saveData = {
+				loadupClosed = (loadupClosed == true),
+				loadupExecute = (loadupExecute == true),
+				loadupFPerson = tonumber(loadupFPerson) or 0,
+				loadupBundle = tostring(loadupBundle or "Default"),
+				saveClothesOption = tostring(saveClothesOption or "Clothed"),
+				KEYBIND = Function.convertToJSON(KEYBIND),
+				hpKEYBIND = Function.convertToJSON(hpKEYBIND),
+				dpKEYBIND = Function.convertToJSON(dpKEYBIND),
+			}
+
+			local mobileButtons = {}
+			if GUIObject and GUIObject.ImageHeal and GUIObject.ImageHeal.Position then
+				mobileButtons.HealPos = Function.convertToJSON(GUIObject.ImageHeal.Position)
+			end
+			if GUIObject and GUIObject.ImageTear and GUIObject.ImageTear.Position then
+				mobileButtons.TearPos = Function.convertToJSON(GUIObject.ImageTear.Position)
+			end
+
+			env.writefile("RClothesLerp/Settings.json", HS:JSONEncode(saveData))
+			if mobileButtons.HealPos and mobileButtons.TearPos then
+				env.writefile("RClothesLerp/MobileButtonPlacement.json", HS:JSONEncode(mobileButtons))
+			end
+		end)
+
+		if showButtonFeedback and GUIObject and GUIObject.saveButton then
+			if success then
+				GUIObject.saveButton.Text = "Saved"
+				task.delay(1, function()
+					if GUIObject and GUIObject.saveButton then
+						GUIObject.saveButton.Text = "Save"
+					end
+				end)
+			else
+				GUIObject.saveButton.Text = "FAILED!"
+				task.delay(1, function()
+					if GUIObject and GUIObject.saveButton then
+						GUIObject.saveButton.Text = "Save"
+					end
+				end)
+			end
+		end
+		return success
+	end
+
+	function Function.LoadSettings()
+		local loadSuccess, err = pcall(function()
+			local readFn = env.readfile
+			local isfileFn = env.isfile or function(p)
+				local s, c = pcall(readFn, p)
+				return s and c ~= nil
+			end
+
+			if not (readFn and isfileFn and isfileFn("RClothesLerp/Settings.json")) then
+				return
+			end
+
+			local content = readFn("RClothesLerp/Settings.json")
+			if not content or content == "" then return end
+
+			local settings = HS:JSONDecode(content)
+			if typeof(settings) ~= "table" then return end
+
+			for i, v in pairs(settings) do
+				settings[i] = Function.convertFromJSON(v)
+			end
+
+			if settings.loadupBundle ~= nil and settings.loadupBundle ~= "" then
+				loadupBundle = tostring(settings.loadupBundle)
+			end
+			if settings.loadupExecute ~= nil then
+				loadupExecute = (settings.loadupExecute == true)
+			end
+			if settings.loadupClosed ~= nil then
+				loadupClosed = (settings.loadupClosed == true)
+			end
+			if settings.loadupFPerson ~= nil then
+				local num = tonumber(settings.loadupFPerson)
+				if num and num >= 0 and num <= maxFPersonMethod then
+					loadupFPerson = num
+				end
+			end
+			if settings.saveClothesOption ~= nil then
+				saveClothesOption = tostring(settings.saveClothesOption)
+			end
+			if settings.KEYBIND ~= nil then
+				KEYBIND = Function.ResolveKeybind(settings.KEYBIND, KEYBIND)
+			end
+			if settings.hpKEYBIND ~= nil then
+				hpKEYBIND = Function.ResolveKeybind(settings.hpKEYBIND, hpKEYBIND)
+			end
+			if settings.dpKEYBIND ~= nil then
+				dpKEYBIND = Function.ResolveKeybind(settings.dpKEYBIND, dpKEYBIND)
+			end
+		end)
+
+		pcall(function()
+			local readFn = env.readfile
+			local isfileFn = env.isfile or function(p)
+				local s, c = pcall(readFn, p)
+				return s and c ~= nil
+			end
+			if readFn and isfileFn and isfileFn("RClothesLerp/MobileButtonPlacement.json") then
+				local content = readFn("RClothesLerp/MobileButtonPlacement.json")
+				if content and content ~= "" then
+					local mSettings = HS:JSONDecode(content)
+					if typeof(mSettings) == "table" then
+						for i, v in pairs(mSettings) do
+							mSettings[i] = Function.convertFromJSON(v)
+						end
+						task.delay(0, function()
+							if GUIObject and GUIObject.ImageHeal and mSettings.HealPos then
+								GUIObject.ImageHeal.Position = mSettings.HealPos
+							end
+							if GUIObject and GUIObject.ImageTear and mSettings.TearPos then
+								GUIObject.ImageTear.Position = mSettings.TearPos
+							end
+						end)
+					end
+				end
+			end
+		end)
+		return loadSuccess
 	end
 	
 	function Function.toFormatString(value)
@@ -3318,6 +3504,10 @@
 		GUIObject.DamageSFX.Text = PlayerData[SelectPlayer].DamageSFX
 		GUIObject.VolumeText.Text = PlayerData[SelectPlayer].Volume
 
+		if KEYBIND and GUIObject and GUIObject.KeybindButton then
+			GUIObject.KeybindButton.Text = (typeof(KEYBIND) == "EnumItem" and KEYBIND.Name) or tostring(KEYBIND):gsub("^Enum%.KeyCode%.", "")
+		end
+
 		Function.CatalogAccessoryFrameAdd(SelectPlayer)
 		Function.MeshEditButton(GUIObject.MeshNameTextbox.Text)
 	end
@@ -3388,48 +3578,30 @@
 				end
 			end
 
-			if env.makefolder and env.isfolder and env.readfile and env.writefile and env.delfile and env.listfiles and env.isfile then
+			Function.LoadSettings()
+
+			if env.makefolder and env.isfolder and env.readfile and env.writefile and env.listfiles and env.isfile then
 				if not env.isfolder("RClothesLerp") then
 					env.makefolder("RClothesLerp")
 				end
 				if not env.isfolder("RClothesLerp/Bundles") then
 					env.makefolder("RClothesLerp/Bundles")
 				end
-				if env.isfile("RClothesLerp/Settings.json") then
-					local settings = HS:JSONDecode(env.readfile("RClothesLerp/Settings.json"))
-					for i, v in pairs(settings) do
-						settings[i] = Function.convertFromJSON(v)
-					end
-					loadupBundle = settings.loadupBundle
-					loadupExecute = settings.loadupExecute
-					loadupClosed = settings.loadupClosed
-					loadupFPerson = settings.loadupFPerson
-					if settings.saveClothesOption ~= nil then
-						saveClothesOption = settings.saveClothesOption
-					end
-					KEYBIND = settings.KEYBIND or KEYBIND
-					hpKEYBIND = settings.hpKEYBIND or hpKEYBIND
-					dpKEYBIND = settings.dpKEYBIND or dpKEYBIND
-				end
-				if env.isfile("RClothesLerp/MobileButtonPlacement.json") then
-					local settings = HS:JSONDecode(env.readfile("RClothesLerp/MobileButtonPlacement.json"))
-					for i, v in pairs(settings) do
-						settings[i] = Function.convertFromJSON(v)
-					end
-					task.delay(0,function()
-						GUIObject.ImageHeal.Position = settings.HealPos
-						GUIObject.ImageTear.Position = settings.TearPos
-					end)
-				end
 				if env.isfile("RClothesLerp/BundleLoader.json") then
-					local decode = HS:JSONDecode(env.readfile("RClothesLerp/BundleLoader.json"))
-					fromJSON(decode)
+					local readOk, content = pcall(env.readfile, "RClothesLerp/BundleLoader.json")
+					local decodeOk, decode = false, nil
+					if readOk and content and content ~= "" then
+						decodeOk, decode = pcall(function() return HS:JSONDecode(content) end)
+					end
+					if decodeOk and typeof(decode) == "table" then
+						fromJSON(decode)
 
-					local bundleAmount = 0
-					for name, bundle in pairs(decode) do
-						bundleAmount += 1
-						bundle["BundleName"] = nil
-						Bundle[name] = bundle
+						local bundleAmount = 0
+						for name, bundle in pairs(decode) do
+							bundleAmount += 1
+							bundle["BundleName"] = nil
+							Bundle[name] = bundle
+						end
 					end
 					task.spawn(function() -- compile overtime --
 						local timeOut = 1000
@@ -3445,36 +3617,40 @@
 						local tab = {}
 						for i, v in pairs(filesFound) do
 							if env.isfile(v) then
-								local b = HS:JSONDecode(env.readfile(v))
-								local storedName = b.BundleName or v:match("([^/\\]+)%.json$")
-								b["BundleName"] = nil
+								local okR, content = pcall(env.readfile, v)
+								local okD, b = false, nil
+								if okR and content and content ~= "" then
+									okD, b = pcall(function() return HS:JSONDecode(content) end)
+								end
+								if okD and typeof(b) == "table" then
+									local storedName = b.BundleName or v:match("([^/\\]+)%.json$")
+									b["BundleName"] = nil
 
-								fromJSON(b)
+									fromJSON(b)
 
-								Bundle[storedName] = b
-								local asset = {}
-								local function transferTable(n,isTable)
-									local newTable = {}
-									for i, v in pairs(n) do
-										if isTable then
-											if typeof(v) == "table" then
-												newTable[i] = transferTable(v,true)
+									Bundle[storedName] = b
+									local asset = {}
+									local function transferTable(n,isTable)
+										local newTable = {}
+										for i, v in pairs(n) do
+											if isTable then
+												if typeof(v) == "table" then
+													newTable[i] = transferTable(v,true)
+												else
+													newTable[i] = v
+												end
 											else
-												newTable[i] = v
-											end
-										else
-											if typeof(v) == "table" then
-												asset[i] = transferTable(v,true)
-											else
-												asset[i] = v
+												if typeof(v) == "table" then
+													asset[i] = transferTable(v,true)
+												else
+													asset[i] = v
+												end
 											end
 										end
+										return newTable
 									end
-									return newTable
-								end
-								transferTable(b)
-								tab[storedName] = asset
-								if not decode[storedName] then
+									transferTable(b)
+									tab[storedName] = asset
 								end
 							end
 						end
@@ -3492,61 +3668,12 @@
 					local t = {}
 					for i, v in pairs(filesFound) do
 						if env.isfile(v) then
-							local b = HS:JSONDecode(env.readfile(v))
-							local storedName = b.BundleName
-							b["BundleName"] = nil
-
-							fromJSON(b)
-							Bundle[storedName] = b
-
-							local asset = {}
-							local function transferTable(n,isTable)
-								local newTable = {}
-								for i, v in pairs(n) do
-									if isTable then
-										if typeof(v) == "table" then
-											newTable[i] = transferTable(v,true)
-										else
-											newTable[i] = v
-										end
-									else
-										if typeof(v) == "table" then
-											asset[i] = transferTable(v,true)
-										else
-											asset[i] = v
-										end
-									end
-								end
-								return newTable
+							local okR, content = pcall(env.readfile, v)
+							local okD, b = false, nil
+							if okR and content and content ~= "" then
+								okD, b = pcall(function() return HS:JSONDecode(content) end)
 							end
-							transferTable(b)
-							t[storedName] = asset
-						end
-					end
-
-					local failed = false
-					if #filesFound > 0 then
-						toJSON(t)
-						env.writefile("RClothesLerp/BundleLoader.json", HS:JSONEncode(t))
-					else
-						failed = true
-						-- No custom saved bundles in RClothesLerp/Bundles yet; using defaults
-					end
-					task.spawn(function() -- compile overtime --
-						local timeOut = 500
-						local amount = 0
-						local filesFound = env.listfiles("RClothesLerp/Bundles")
-						if #filesFound <= 0 then
-							repeat
-								task.wait()
-								filesFound = env.listfiles("RClothesLerp/Bundles")
-								timeOut -= 1
-							until timeOut <= 0 or #filesFound > 0
-						end
-						local t = {}
-						for i, v in pairs(filesFound) do
-							if env.isfile(v) then
-								local b = HS:JSONDecode(env.readfile(v))
+							if okD and typeof(b) == "table" then
 								local storedName = b.BundleName or v:match("([^/\\]+)%.json$")
 								b["BundleName"] = nil
 
@@ -3575,6 +3702,67 @@
 								end
 								transferTable(b)
 								t[storedName] = asset
+							end
+						end
+					end
+
+					local failed = false
+					if #filesFound > 0 then
+						toJSON(t)
+						env.writefile("RClothesLerp/BundleLoader.json", HS:JSONEncode(t))
+					else
+						failed = true
+						-- No custom saved bundles in RClothesLerp/Bundles yet; using defaults
+					end
+					task.spawn(function() -- compile overtime --
+						local timeOut = 500
+						local amount = 0
+						local filesFound = env.listfiles("RClothesLerp/Bundles")
+						if #filesFound <= 0 then
+							repeat
+								task.wait()
+								filesFound = env.listfiles("RClothesLerp/Bundles")
+								timeOut -= 1
+							until timeOut <= 0 or #filesFound > 0
+						end
+						local t = {}
+						for i, v in pairs(filesFound) do
+							if env.isfile(v) then
+								local okR, content = pcall(env.readfile, v)
+								local okD, b = false, nil
+								if okR and content and content ~= "" then
+									okD, b = pcall(function() return HS:JSONDecode(content) end)
+								end
+								if okD and typeof(b) == "table" then
+									local storedName = b.BundleName or v:match("([^/\\]+)%.json$")
+									b["BundleName"] = nil
+
+									fromJSON(b)
+									Bundle[storedName] = b
+
+									local asset = {}
+									local function transferTable(n,isTable)
+										local newTable = {}
+										for i, v in pairs(n) do
+											if isTable then
+												if typeof(v) == "table" then
+													newTable[i] = transferTable(v,true)
+												else
+													newTable[i] = v
+												end
+											else
+												if typeof(v) == "table" then
+													asset[i] = transferTable(v,true)
+												else
+													asset[i] = v
+												end
+											end
+										end
+										return newTable
+									end
+									transferTable(b)
+									t[storedName] = asset
+								end
 							end
 						end
 
@@ -3606,13 +3794,13 @@
 					loadupFPerson = loadupSettings.loadupFPerson
 				end
 				if loadupSettings.KEYBIND then
-					KEYBIND = loadupSettings.KEYBIND
+					KEYBIND = Function.ResolveKeybind(loadupSettings.KEYBIND, KEYBIND)
 				end
 				if loadupSettings.hpKEYBIND then
-					hpKEYBIND = loadupSettings.hpKEYBIND
+					hpKEYBIND = Function.ResolveKeybind(loadupSettings.hpKEYBIND, hpKEYBIND)
 				end
 				if loadupSettings.dpKEYBIND then
-					dpKEYBIND = loadupSettings.dpKEYBIND
+					dpKEYBIND = Function.ResolveKeybind(loadupSettings.dpKEYBIND, dpKEYBIND)
 				end
 			end
 			if script:FindFirstChild("myBundles") then

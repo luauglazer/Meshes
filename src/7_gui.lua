@@ -1,42 +1,49 @@
 	
 	function Function.compileOvertime()
 		task.spawn(function()
-			local filesFound = env.listfiles("RClothesLerp/Bundles")
+			if not (env.listfiles and env.readfile and env.writefile) then return end
+			local ok, filesFound = pcall(env.listfiles, "RClothesLerp/Bundles")
+			if not ok or type(filesFound) ~= "table" then return end
 			local t = {}
 			for i, v in pairs(filesFound) do
-				if env.isfile(v) then
-					local b = HS:JSONDecode(env.readfile(v))
-					local storedName = b.BundleName or v:match("([^/\\]+)%.json$")
-					b["BundleName"] = nil
+				if env.isfile and env.isfile(v) then
+					local readOk, content = pcall(env.readfile, v)
+					if readOk and content and content ~= "" then
+						local decodeOk, b = pcall(function() return HS:JSONDecode(content) end)
+						if decodeOk and typeof(b) == "table" then
+							local storedName = b.BundleName or v:match("([^/\\]+)%.json$")
+							b["BundleName"] = nil
 
-					local function fromJSON(t)
-						for i, v in pairs(t) do
-							local value,original = Function.convertFromJSON(v)
-							t[i] = value
-							if typeof(v) == "table" and original then
-								fromJSON(v)
+							local function fromJSON(tbl)
+								for ki, vi in pairs(tbl) do
+									local value, original = Function.convertFromJSON(vi)
+									tbl[ki] = value
+									if typeof(vi) == "table" and original then
+										fromJSON(vi)
+									end
+								end
 							end
+							fromJSON(b)
+
+							t[storedName] = b
 						end
 					end
-					fromJSON(b)
-
-					t[storedName] = b
 				end
 			end
-			local function toJSON(t)
-				for i, v in pairs(t) do
-					if typeof(v) == "table" then
-						toJSON(v)
+			local function toJSON(tbl)
+				for ki, vi in pairs(tbl) do
+					if typeof(vi) == "table" then
+						toJSON(vi)
 					else
-						t[i] = Function.convertToJSON(v)
+						tbl[ki] = Function.convertToJSON(vi)
 					end
 				end
 			end
 			toJSON(t)
 			if #filesFound > 0 then
-				env.writefile("RClothesLerp/BundleLoader.json", HS:JSONEncode(t))
-			else
-				env.delfile("RClothesLerp/BundleLoader.json")
+				pcall(env.writefile, "RClothesLerp/BundleLoader.json", HS:JSONEncode(t))
+			elseif env.delfile then
+				pcall(env.delfile, "RClothesLerp/BundleLoader.json")
 			end
 		end)
 	end
@@ -338,8 +345,13 @@
 
 		local KeybindConnect = GUIObject.KeybindButton.MouseButton1Click:Connect(function()
 			if UIS.KeyboardEnabled then
-				GUIObject.KeybindButton.Text = "Change Keybind (Click On Keyboard)"
-				KeybindDetect = true
+				if KeybindDetect then
+					KeybindDetect = false
+					GUIObject.KeybindButton.Text = (typeof(KEYBIND) == "EnumItem" and KEYBIND.Name) or tostring(KEYBIND):gsub("^Enum%.KeyCode%.", "")
+				else
+					GUIObject.KeybindButton.Text = "Change Keybind (Click On Keyboard)"
+					KeybindDetect = true
+				end
 			end
 		end)
 
@@ -739,6 +751,7 @@
 			s = s .. convertTableToString(t, 1) .. "},"
 			return s
 		end
+		Function.TableToString = toBundleFormat
 		
 		local function checkBundle(v)
 
@@ -790,6 +803,45 @@
 						if not ch:IsA("UIGridLayout") then
 							ch:Destroy()
 						end
+					end
+				end
+				for _, accId in pairs(v["Accessory"]) do
+					local num = tonumber(accId)
+					if num and not table.find(PlayerData[SelectPlayer].CatalogAccessory, num) then
+						table.insert(PlayerData[SelectPlayer].CatalogAccessory, num)
+						local Button = Function.ButtonCreate(num, GUIObject.Catalog_3:FindFirstChild(SelectPlayer))
+						local AccessoryButtonConnect
+						AccessoryButtonConnect = Button:FindFirstChildOfClass("TextButton").MouseButton1Click:Connect(function()
+							for i, b in pairs(PlayerData[SelectPlayer].CatalogAccessory) do
+								if tonumber(b) == tonumber(Button.Name) then
+									table.remove(PlayerData[SelectPlayer].CatalogAccessory, i)
+								end
+							end
+							Button:Destroy()
+							AccessoryButtonConnect:Disconnect()
+						end)
+						table.insert(AllConnect, AccessoryButtonConnect)
+					end
+				end
+			end
+
+			if v["TailAccessory"] and typeof(v["TailAccessory"]) == "table" and (not v.ClothingBundle or v.ClothingBundle == false) then
+				for _, tailId in pairs(v["TailAccessory"]) do
+					local num = tonumber(tailId)
+					if num and not table.find(PlayerData[SelectPlayer].CatalogTail, num) then
+						table.insert(PlayerData[SelectPlayer].CatalogTail, num)
+						local Button = Function.ButtonCreate(num, GUIObject.Catalog_3:FindFirstChild(SelectPlayer))
+						local AccessoryButtonConnect
+						AccessoryButtonConnect = Button:FindFirstChildOfClass("TextButton").MouseButton1Click:Connect(function()
+							for i, b in pairs(PlayerData[SelectPlayer].CatalogTail) do
+								if tonumber(b) == tonumber(Button.Name) then
+									table.remove(PlayerData[SelectPlayer].CatalogTail, i)
+								end
+							end
+							Button:Destroy()
+							AccessoryButtonConnect:Disconnect()
+						end)
+						table.insert(AllConnect, AccessoryButtonConnect)
 					end
 				end
 			end
@@ -894,6 +946,28 @@
 								table.insert(AllConnect, AccessoryButtonConnect)
 							end
 							PlayerData[SelectPlayer][setting] = value
+						elseif setting == "tailSettings" and typeof(value) == "table" then
+							if not PlayerData[SelectPlayer].tailSettings then
+								PlayerData[SelectPlayer].tailSettings = {}
+							end
+							for tk, tv in pairs(value) do
+								PlayerData[SelectPlayer].tailSettings[tk] = tv
+							end
+						elseif setting == "LocalTransparency" and typeof(value) == "table" then
+							if not PlayerData[SelectPlayer].LocalTransparency then
+								PlayerData[SelectPlayer].LocalTransparency = {}
+							end
+							for lk, lv in pairs(value) do
+								PlayerData[SelectPlayer].LocalTransparency[lk] = lv
+							end
+						elseif setting == "FPerson" then
+							PlayerData[SelectPlayer].FPerson = (value == true)
+							if not value and SelectPlayer == Player.Name and Player.Character then
+								local human = Player.Character:FindFirstChildOfClass("Humanoid")
+								if human then
+									human.CameraOffset = Vector3.new(0, 0, 0)
+								end
+							end
 						else
 							PlayerData[SelectPlayer][setting] = value
 						end
@@ -1216,20 +1290,18 @@
 					GUIObject.Bundles.Visible = false
 					GUIObject.optionsFrame.Visible = true
 
-					local success = pcall(function()
-						if env.delfile and env.isfile("RClothesLerp/Bundles/"..sanitize(BButton.Name)..".json") then
-							env.delfile("RClothesLerp/Bundles/"..sanitize(BButton.Name)..".json")
-						else
-							error("no")
-						end
-					end)
-					if not success then
-						GUIObject.delButton.Text = "CANNOT DELETE"
-					else
-						GUIObject.delButton.Text = BButton.Name.." Deleted"
-						BButton:Destroy()
-						Function.compileOvertime()
+					Bundle[BButton.Name] = nil
+					if env.delfile then
+						pcall(function()
+							local p = "RClothesLerp/Bundles/"..sanitize(BButton.Name)..".json"
+							if env.isfile and env.isfile(p) then
+								env.delfile(p)
+							end
+						end)
 					end
+					GUIObject.delButton.Text = BButton.Name.." Deleted"
+					BButton:Destroy()
+					Function.compileOvertime()
 					task.delay(2,function()
 						GUIObject.delButton.Text = "Delete Bundle"
 					end)
@@ -1431,6 +1503,12 @@
 
 		local FirstPersonConnect = GUIObject.FPExecute.MouseButton1Click:Connect(function()
 			PlayerData[SelectPlayer].FPerson = not PlayerData[SelectPlayer].FPerson
+			if not PlayerData[SelectPlayer].FPerson and SelectPlayer == Player.Name and Player.Character then
+				local human = Player.Character:FindFirstChildOfClass("Humanoid")
+				if human then
+					human.CameraOffset = Vector3.new(0, 0, 0)
+				end
+			end
 
 			Function.GUIUpdate()
 		end)
@@ -1537,12 +1615,14 @@
 			loadupClosed = not loadupClosed
 
 			Function.GUIUpdate()
+			Function.SaveSettings()
 		end)
 
 		local loadupExecuteConnect = GUIObject.executeOptionButton.MouseButton1Click:Connect(function()
 			loadupExecute = not loadupExecute
 
 			Function.GUIUpdate()
+			Function.SaveSettings()
 		end)
 
 		local saveClothesToggleConnect = GUIObject.saveClothesOptionButton.MouseButton1Click:Connect(function()
@@ -1554,6 +1634,7 @@
 				saveClothesOption = "Boob Naked"
 			end
 			Function.GUIUpdate()
+			Function.SaveSettings()
 		end)
 		table.insert(AllConnect, saveClothesToggleConnect)
 
@@ -1566,6 +1647,7 @@
 				saveClothesOption = "Boob Naked"
 			end
 			Function.GUIUpdate()
+			Function.SaveSettings()
 		end)
 		table.insert(AllConnect, saveClothesToggleConnect2)
 
@@ -1576,6 +1658,7 @@
 				loadupFPerson = 0
 			end
 			Function.GUIUpdate()
+			Function.SaveSettings()
 		end)
 
 		local loadupFPersonConnect2 = GUIObject.FPersonLoadupButton.MouseButton2Click:Connect(function()
@@ -1585,6 +1668,7 @@
 				loadupFPerson = maxFPersonMethod
 			end
 			Function.GUIUpdate()
+			Function.SaveSettings()
 		end)
 
 		local loadupBundleConnect = GUIObject.bundleLoadButton.MouseButton1Click:Connect(function()
@@ -1596,6 +1680,7 @@
 				repeat task.wait() until DetectingBundle == false or GUIObject.Bundles.Visible == false
 				DetectingBundle = false
 				Function.GUIUpdate()
+				Function.SaveSettings()
 			end)
 		end)
 
@@ -1761,6 +1846,8 @@
 						BodyPartPhysics = charData.BodyPartPhysics,
 						PhysicsObeyGravity = charData.PhysicsObeyGravity,
 						RealtimeBodyTransparency = charData.RealtimeBodyTransparency,
+						PositionPhysicsMultiply = PositionPhysicsMultiply,
+						RotationPhysicsMultiply = RotationPhysicsMultiply,
 						CockScale = charData.CockScale,
 						BreastsScale = charData.BreastsScale,
 						ButtsScale = charData.ButtsScale,
@@ -1770,6 +1857,20 @@
 						ArmType = charData.ArmType,
 						LegsType = charData.LegsType,
 						ButtType = charData.ButtType,
+						HardcoreHP = (charData.HardcoreHP == true),
+						TopHP = charData.TopHP,
+						BottomHP = charData.BottomHP,
+						DamageSFX = charData.DamageSFX,
+						Volume = charData.Volume,
+						DelayTime = charData.DelayTime,
+						HealParticles = (charData.HealParticles ~= false),
+						DamageParticles = (charData.DamageParticles ~= false),
+						FPerson = (charData.FPerson == true),
+						FPsnap = (charData.FPsnap == true),
+						HeadTracking = (charData.HeadTracking ~= false),
+						isTailCurrentlyEnabled = (charData.isTailCurrentlyEnabled ~= false),
+						tailSettings = charData.tailSettings,
+						LocalTransparency = charData.LocalTransparency,
 					}
 				}
 
@@ -1838,6 +1939,7 @@
 						DetectingBundle = false
 						GUIObject.Bundles.Visible = false
 						GUIObject.optionsFrame.Visible = true
+						Bundle[outfitName] = nil
 						local function sanitize(str)
 							for _, char in ipairs({"/", "<", ">", "?", "*", "|", " ", "\\", '"', ":"}) do
 								str = string.gsub(str, char, "_")
@@ -2188,6 +2290,15 @@
 						BottomHP = charData.BottomHP,
 						DamageSFX = charData.DamageSFX,
 						Volume = charData.Volume,
+						DelayTime = charData.DelayTime,
+						HealParticles = (charData.HealParticles ~= false),
+						DamageParticles = (charData.DamageParticles ~= false),
+						FPerson = (charData.FPerson == true),
+						FPsnap = (charData.FPsnap == true),
+						HeadTracking = (charData.HeadTracking ~= false),
+						isTailCurrentlyEnabled = (charData.isTailCurrentlyEnabled ~= false),
+						tailSettings = charData.tailSettings,
+						LocalTransparency = charData.LocalTransparency,
 					}
 				}
 
@@ -2308,7 +2419,14 @@
 						end
 						local jsonBundle = deepToJSON(newBundle)
 						jsonBundle["BundleName"] = outfitName
-						env.writefile("RClothesLerp/Bundles/" .. outfitName .. ".json", HS:JSONEncode(jsonBundle))
+						local function sanitize(str)
+							for _, char in ipairs({"/", "<", ">", "?", "*", "|", " ", "\\", '"', ":"}) do
+								str = string.gsub(str, char, "_")
+							end
+							return str
+						end
+						env.writefile("RClothesLerp/Bundles/" .. sanitize(outfitName) .. ".json", HS:JSONEncode(jsonBundle))
+						Function.compileOvertime()
 					end)
 				end
 
@@ -2340,15 +2458,22 @@
 							Bundle[outfitName] = nil
 							if env.delfile then
 								pcall(function()
-									env.delfile("RClothesLerp/Bundles/" .. outfitName .. ".json")
+									local function sanitize(str)
+										for _, char in ipairs({"/", "<", ">", "?", "*", "|", " ", "\\", '"', ":"}) do
+											str = string.gsub(str, char, "_")
+										end
+										return str
+									end
+									env.delfile("RClothesLerp/Bundles/" .. sanitize(outfitName) .. ".json")
 								end)
 							end
 							BButton:Destroy()
 							DetectingBundle = false
 							Function.GUIUpdate()
+							Function.compileOvertime()
 						elseif DetectingBundle == "export" then
 							if env.copy then
-								env.copy(Function.TableToString(newBundle, outfitName))
+								env.copy(toBundleFormat(newBundle, outfitName))
 							end
 							DetectingBundle = false
 							Function.GUIUpdate()
@@ -2359,7 +2484,7 @@
 
 				-- Copy formatted Luau bundle table to clipboard
 				pcall(function()
-					local exportString = Function.TableToString(newBundle, outfitName)
+					local exportString = toBundleFormat(newBundle, outfitName)
 					if env.copy then
 						env.copy(exportString)
 					end
@@ -2414,48 +2539,10 @@
 		local saveConnect = GUIObject.saveButton.MouseButton1Click:Connect(function()
 			if debounce == false then
 				debounce = true
-				local saveData = {
-					loadupClosed = loadupClosed,
-					loadupExecute = loadupExecute,
-					loadupFPerson = loadupFPerson,
-					loadupBundle = loadupBundle,
-					saveClothesOption = saveClothesOption,
-					KEYBIND = KEYBIND,
-					hpKEYBIND = hpKEYBIND,
-					dpKEYBIND = dpKEYBIND,
-				}
-				local mobileButtons = {
-					HealPos = GUIObject.ImageHeal.Position,
-					TearPos = GUIObject.ImageTear.Position,
-				}
-				local success, err = pcall(function()
-					for i, v in pairs(saveData) do
-						saveData[i] = Function.convertToJSON(v)
-					end
-					for i, v in pairs(mobileButtons) do
-						mobileButtons[i] = Function.convertToJSON(v)
-					end
-
-					if env.writefile then
-						env.writefile("RClothesLerp/Settings.json", HS:JSONEncode(saveData))
-						env.writefile("RClothesLerp/MobileButtonPlacement.json", HS:JSONEncode(mobileButtons))
-					end
+				Function.SaveSettings(true)
+				task.delay(1, function()
+					debounce = false
 				end)
-				if success then
-					print("Saved RC")
-					GUIObject.saveButton.Text = "Saved"
-					task.delay(1,function()
-						GUIObject.saveButton.Text = "Save"
-						debounce = false
-					end)
-				else
-					warn("Failed to save RC: ".. err)
-					GUIObject.saveButton.Text = "FAILED!"
-					task.delay(1,function()
-						GUIObject.saveButton.Text = "Save"
-						debounce = false
-					end)
-				end
 			end
 		end)
 
@@ -2567,8 +2654,12 @@
 										end
 
 										checkBundle(input)
-
 										Function.GUIUpdate()
+										local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
+										if targetPlayer and targetPlayer.Character then
+											Function.CharacterReset(SelectPlayer)
+											Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
+										end
 									elseif DetectingBundle == "loadup" then
 										DetectingBundle = false
 										GUIObject.Bundles.Visible = false
@@ -2605,20 +2696,18 @@
 										GUIObject.Bundles.Visible = false
 										GUIObject.optionsFrame.Visible = true
 
-										local success = pcall(function()
-											if env.delfile and env.isfile("RClothesLerp/Bundles/"..sanitize(name)..".json") then
-												env.delfile("RClothesLerp/Bundles/"..sanitize(name)..".json")
-											else
-												error("no")
-											end
-										end)
-										if not success then
-											GUIObject.delButton.Text = "CANNOT DELETE"
-										else
-											GUIObject.delButton.Text = name.." Deleted"
-											BButton:Destroy()
-											Function.compileOvertime()
+										Bundle[name] = nil
+										if env.delfile then
+											pcall(function()
+												local p = "RClothesLerp/Bundles/"..sanitize(name)..".json"
+												if env.isfile and env.isfile(p) then
+													env.delfile(p)
+												end
+											end)
 										end
+										GUIObject.delButton.Text = name.." Deleted"
+										BButton:Destroy()
+										Function.compileOvertime()
 										task.delay(2,function()
 											GUIObject.delButton.Text = "Delete Bundle"
 										end)
@@ -3523,7 +3612,7 @@
 	GUIObject.KeybindButton.BackgroundTransparency = 1.000
 	GUIObject.KeybindButton.Size = UDim2.new(1, 0, 1, 0)
 	GUIObject.KeybindButton.Font = Enum.Font.Code
-	GUIObject.KeybindButton.Text = "Insert"
+	GUIObject.KeybindButton.Text = (typeof(KEYBIND) == "EnumItem" and KEYBIND.Name) or tostring(KEYBIND or "Insert"):gsub("^Enum%.KeyCode%.", "")
 	GUIObject.KeybindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 	GUIObject.KeybindButton.TextScaled = true
 	GUIObject.KeybindButton.TextSize = 14.000
