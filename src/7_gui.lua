@@ -341,6 +341,11 @@
 			end
 
 			Function.GUIUpdate()
+			local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
+			if targetPlayer and targetPlayer.Character then
+				Function.CharacterReset(SelectPlayer)
+				Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
+			end
 		end)
 
 		local KeybindConnect = GUIObject.KeybindButton.MouseButton1Click:Connect(function()
@@ -604,6 +609,13 @@
 				PlayerData[SelectPlayer].SkinTone = Color
 				GUIObject.SkinToneText.TextColor3 = Color
 			end
+
+			Function.GUIUpdate()
+			local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
+			if targetPlayer and targetPlayer.Character then
+				Function.CharacterReset(SelectPlayer)
+				Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
+			end
 		end)
 
 		local NippleColorConnect = GUIObject.NippleColorText.FocusLost:Connect(function()
@@ -611,11 +623,22 @@
 
 			if Text == "" then
 				PlayerData[SelectPlayer].NippleColor = nil
+				if PlayerData[SelectPlayer].Tone == "Use NippleColor" then
+					PlayerData[SelectPlayer].Tone = "Base"
+				end
 			else
 				local Color = Function.StringTo(Text, "RGB")
 
 				PlayerData[SelectPlayer].NippleColor = Color
+				PlayerData[SelectPlayer].Tone = "Use NippleColor"
 				GUIObject.NippleColorText.TextColor3 = Color
+			end
+
+			Function.GUIUpdate()
+			local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
+			if targetPlayer and targetPlayer.Character then
+				Function.CharacterReset(SelectPlayer)
+				Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
 			end
 		end)
 
@@ -769,9 +792,17 @@
 				if v["Clothes"].Pants then
 					PlayerData[SelectPlayer].CatalogClothes.Pants = tostring(v["Clothes"].Pants)
 				end
+				if v["Clothes"].ShirtTemplate then
+					PlayerData[SelectPlayer].CatalogClothes.ShirtTemplate = v["Clothes"].ShirtTemplate
+				end
+				if v["Clothes"].PantsTemplate then
+					PlayerData[SelectPlayer].CatalogClothes.PantsTemplate = v["Clothes"].PantsTemplate
+				end
 			else
 				PlayerData[SelectPlayer].CatalogClothes.Shirt = ""
 				PlayerData[SelectPlayer].CatalogClothes.Pants = ""
+				PlayerData[SelectPlayer].CatalogClothes.ShirtTemplate = nil
+				PlayerData[SelectPlayer].CatalogClothes.PantsTemplate = nil
 			end
 
 			if v["Body Color"] then
@@ -782,16 +813,16 @@
 				PlayerData[SelectPlayer].SkinTone = v["SkinTone"]
 			end
 
-			if v["NippleColor"] then
-				local nc = v["NippleColor"]
-				if typeof(nc) == "table" and nc.R and nc.G and nc.B then
-					nc = Color3.new(nc.R, nc.G, nc.B)
+			local targetNipColor = v["NippleColor"] or (v.Preset and v.Preset.NippleColor)
+			if targetNipColor then
+				if typeof(targetNipColor) == "table" and targetNipColor.R and targetNipColor.G and targetNipColor.B then
+					targetNipColor = Color3.new(targetNipColor.R, targetNipColor.G, targetNipColor.B)
 				end
-				PlayerData[SelectPlayer].NippleColor = nc
+				PlayerData[SelectPlayer].NippleColor = targetNipColor
 				PlayerData[SelectPlayer].Tone = "Use NippleColor"
 				if GUIObject.NippleColorText then
-					GUIObject.NippleColorText.Text = math.round(nc.R * 255) .. ", " .. math.round(nc.G * 255) .. ", " .. math.round(nc.B * 255)
-					GUIObject.NippleColorText.TextColor3 = nc
+					GUIObject.NippleColorText.Text = math.round(targetNipColor.R * 255) .. ", " .. math.round(targetNipColor.G * 255) .. ", " .. math.round(targetNipColor.B * 255)
+					GUIObject.NippleColorText.TextColor3 = targetNipColor
 				end
 			end
 
@@ -968,6 +999,12 @@
 									human.CameraOffset = Vector3.new(0, 0, 0)
 								end
 							end
+						elseif setting == "Tone" then
+							if not targetNipColor or value == "Dark" then
+								PlayerData[SelectPlayer].Tone = value
+							else
+								PlayerData[SelectPlayer].Tone = "Use NippleColor"
+							end
 						else
 							PlayerData[SelectPlayer][setting] = value
 						end
@@ -1138,12 +1175,15 @@
 				end
 			end
 
-			if v.NippleColor then
-				local nc = v.NippleColor
-				if typeof(nc) == "table" and nc.R and nc.G and nc.B then
-					nc = Color3.new(nc.R, nc.G, nc.B)
+			if targetNipColor then
+				PlayerData[SelectPlayer].NippleColor = targetNipColor
+				if PlayerData[SelectPlayer].Tone ~= "Dark" then
+					PlayerData[SelectPlayer].Tone = "Use NippleColor"
 				end
-				PlayerData[SelectPlayer].NippleColor = nc
+				if GUIObject.NippleColorText then
+					GUIObject.NippleColorText.Text = math.round(targetNipColor.R * 255) .. ", " .. math.round(targetNipColor.G * 255) .. ", " .. math.round(targetNipColor.B * 255)
+					GUIObject.NippleColorText.TextColor3 = targetNipColor
+				end
 			end
 
 			if v["Body Color"] then
@@ -1202,18 +1242,31 @@
 
 		end
 
-		for i, v in pairs(Bundle) do
-			local BButton = Function.ButtonCreate(i, GUIObject.BundlesButtonFrame)
-			if v.ClothingBundle and v.ClothingBundle == true then
+		local function registerBundleButton(name, bData)
+			Bundle[name] = bData
+
+			local oldChild = GUIObject.BundlesButtonFrame:FindFirstChild(name)
+			if oldChild then
+				for idx, btn in ipairs(BundleButtons) do
+					if btn == oldChild then
+						table.remove(BundleButtons, idx)
+						break
+					end
+				end
+				oldChild:Destroy()
+			end
+
+			local BButton = Function.ButtonCreate(name, GUIObject.BundlesButtonFrame)
+			if bData.ClothingBundle and bData.ClothingBundle == true then
 				BButton.BackgroundColor3 = Color3.fromRGB(90, 38, 0)
-			elseif v.IsPreset == true then
+			elseif bData.IsPreset == true then
 				BButton.BackgroundColor3 = Color3.fromRGB(25, 84, 0)
 			end
 
-			if i ~= "nil" and i ~= "Bald" then
+			if name ~= "nil" and name ~= "Bald" then
 				table.insert(BundleButtons, BButton)
 			else
-				if i == "nil" then
+				if name == "nil" then
 					BButton.LayoutOrder = -999999999
 				else
 					BButton.LayoutOrder = -999999998
@@ -1221,6 +1274,7 @@
 			end
 
 			local BBConnect = BButton:FindFirstChildOfClass("TextButton").MouseButton1Click:Connect(function()
+				local currentData = Bundle[name] or bData
 				if DetectingBundle == false then
 					if BButton.Name == "nil" and PlayerData[SelectPlayer].CurrentBundle == "nil" then
 						Function.CharacterReset(SelectPlayer)
@@ -1231,16 +1285,16 @@
 							end
 						end
 
-						task.delay(0,function()
+						task.delay(0, function()
 							BButton:FindFirstChildOfClass("TextButton").Text = "CLEARED"
 						end)
 					end
 
-					if (not v.ClothingBundle or v.ClothingBundle == false) and (not v.IsPreset or v.IsPreset == false) then
+					if (not currentData.ClothingBundle or currentData.ClothingBundle == false) and (not currentData.IsPreset or currentData.IsPreset == false) then
 						PlayerData[SelectPlayer].CurrentBundle = BButton.Name
 					end
 
-					checkBundle(v)
+					checkBundle(currentData)
 					Function.GUIUpdate()
 
 					local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
@@ -1261,9 +1315,9 @@
 					DetectingBundle = false
 					GUIObject.Bundles.Visible = false
 					GUIObject.optionsFrame.Visible = true
-					
-					local exportString = toBundleFormat(v, BButton.Name)
-					
+
+					local exportString = toBundleFormat(currentData, BButton.Name)
+
 					local successfulCopy = pcall(function()
 						if env.copy then
 							GUIObject.exportButton.Text = "Copied exported bundle!"
@@ -1276,12 +1330,12 @@
 						GUIObject.exportButton.Text = "CANNOT COPY, EXPORTED TO CONSOLE"
 						print(exportString)
 					end
-					task.delay(2,function()
+					task.delay(2, function()
 						GUIObject.exportButton.Text = "Export Bundle"
 					end)
 				elseif DetectingBundle == "delete" then
 					local function sanitize(str)
-						for _, char in ipairs({"/", "<", ">", "?", "*", "|", "\ ","\\",'"', ":"}) do
+						for _, char in ipairs({"/", "<", ">", "?", "*", "|", " ", "\\", '"', ":"}) do
 							str = string.gsub(str, char, "_")
 						end
 						return str
@@ -1299,10 +1353,16 @@
 							end
 						end)
 					end
+					for idx, btn in ipairs(BundleButtons) do
+						if btn == BButton then
+							table.remove(BundleButtons, idx)
+							break
+						end
+					end
 					GUIObject.delButton.Text = BButton.Name.." Deleted"
 					BButton:Destroy()
 					Function.compileOvertime()
-					task.delay(2,function()
+					task.delay(2, function()
 						GUIObject.delButton.Text = "Delete Bundle"
 					end)
 				end
@@ -1311,6 +1371,12 @@
 			end)
 
 			table.insert(AllConnect, BBConnect)
+			return BButton
+		end
+		Function.registerBundleButton = registerBundleButton
+
+		for i, v in pairs(Bundle) do
+			registerBundleButton(i, v)
 		end
 
 		if loadupBundle ~= nil and Bundle[loadupBundle] then
@@ -1775,6 +1841,198 @@
 				local shirtId = getClothesIdHelper(charData, "Shirt", desc, char, m2Char)
 				local pantsId = getClothesIdHelper(charData, "Pants", desc, char, m2Char)
 
+				local liveShirt = (char and char:FindFirstChildOfClass("Shirt"))
+					or (m2Char and m2Char:FindFirstChildOfClass("Shirt"))
+					or (charData and charData.OldestClothings and charData.OldestClothings["Shirt"])
+				local livePants = (char and char:FindFirstChildOfClass("Pants"))
+					or (m2Char and m2Char:FindFirstChildOfClass("Pants"))
+					or (charData and charData.OldestClothings and charData.OldestClothings["Pants"])
+
+				local liveShirtTemplate = (liveShirt and liveShirt.ShirtTemplate ~= "" and liveShirt.ShirtTemplate)
+					or (charData and charData.PlayerOwnAvatar and charData.PlayerOwnAvatar.ShirtTemplate ~= "" and charData.PlayerOwnAvatar.ShirtTemplate)
+					or (Function.CharacterClothesCache and Function.CharacterClothesCache[SelectPlayer] and Function.CharacterClothesCache[SelectPlayer].ShirtTemplate)
+				local livePantsTemplate = (livePants and livePants.PantsTemplate ~= "" and livePants.PantsTemplate)
+					or (charData and charData.PlayerOwnAvatar and charData.PlayerOwnAvatar.PantsTemplate ~= "" and charData.PlayerOwnAvatar.PantsTemplate)
+					or (Function.CharacterClothesCache and Function.CharacterClothesCache[SelectPlayer] and Function.CharacterClothesCache[SelectPlayer].PantsTemplate)
+
+				if not shirtId and liveShirtTemplate then
+					shirtId = tonumber(liveShirtTemplate:match("%d+"))
+				end
+				if not pantsId and livePantsTemplate then
+					pantsId = tonumber(livePantsTemplate:match("%d+"))
+				end
+
+				if Function.ClothesTemplateCache then
+					if shirtId and liveShirtTemplate then
+						Function.ClothesTemplateCache[shirtId] = liveShirtTemplate
+						Function.ClothesTemplateCache[tostring(shirtId)] = liveShirtTemplate
+					end
+					if pantsId and livePantsTemplate then
+						Function.ClothesTemplateCache[pantsId] = livePantsTemplate
+						Function.ClothesTemplateCache[tostring(pantsId)] = livePantsTemplate
+					end
+				end
+				if Function.CharacterClothesCache then
+					Function.CharacterClothesCache[SelectPlayer] = {
+						ShirtTemplate = liveShirtTemplate,
+						PantsTemplate = livePantsTemplate,
+						Shirt = shirtId,
+						Pants = pantsId,
+					}
+				end
+
+				-- Capture exact accessory positions, attachment CFrames, welds, mesh scales, and types
+				local accessoryPositions = {}
+				local accessoryTypes = {}
+				local accessoryIds = {}
+
+				if desc then
+					pcall(function()
+						local accProps = {
+							HatAccessory = "HatAccessory",
+							HairAccessory = "HairAccessory",
+							FaceAccessory = "FaceAccessory",
+							NeckAccessory = "NeckAccessory",
+							ShouldersAccessory = "ShouldersAccessory",
+							FrontAccessory = "FrontAccessory",
+							BackAccessory = "BackAccessory",
+							WaistAccessory = "WaistAccessory",
+						}
+						for prop, tName in pairs(accProps) do
+							local val = desc[prop]
+							if val and type(val) == "string" and val ~= "" then
+								for idStr in string.gmatch(val, "%d+") do
+									local nId = tonumber(idStr)
+									if nId then
+										accessoryTypes[tostring(nId)] = tName
+										accessoryTypes[nId] = tName
+										if not table.find(accessoryIds, nId) then
+											table.insert(accessoryIds, nId)
+										end
+									end
+								end
+							end
+						end
+						local accList = desc:GetAccessories(true)
+						if accList then
+							for _, item in pairs(accList) do
+								if item.AssetId and item.AccessoryType then
+									local tName = item.AccessoryType.Name .. "Accessory"
+									if item.AccessoryType == Enum.AccessoryType.Shoulder then
+										tName = "ShouldersAccessory"
+									end
+									accessoryTypes[tostring(item.AssetId)] = tName
+									accessoryTypes[item.AssetId] = tName
+									if not table.find(accessoryIds, item.AssetId) then
+										table.insert(accessoryIds, item.AssetId)
+									end
+								end
+							end
+						end
+					end)
+				end
+				if charData.CatalogAccessory then
+					for _, id in pairs(charData.CatalogAccessory) do
+						local nid = tonumber(id)
+						if nid and nid > 0 and not table.find(accessoryIds, nid) then
+							table.insert(accessoryIds, nid)
+						end
+					end
+				end
+
+				local function scanAccPos(model)
+					if not model then return end
+					for _, acc in pairs(model:GetChildren()) do
+						if acc:IsA("Accessory") then
+							local aid = acc:GetAttribute("AssetId") or (acc:FindFirstChild("AssetId") and acc.AssetId.Value)
+							if aid and tonumber(aid) then
+								local numId = tonumber(aid)
+								if acc.AccessoryType and acc.AccessoryType ~= Enum.AccessoryType.Unknown then
+									local tName = acc.AccessoryType.Name .. "Accessory"
+									if acc.AccessoryType == Enum.AccessoryType.Shoulder then
+										tName = "ShouldersAccessory"
+									end
+									accessoryTypes[tostring(numId)] = tName
+									accessoryTypes[numId] = tName
+								end
+							end
+
+							local handle = acc:FindFirstChild("Handle") or acc:FindFirstChildOfClass("BasePart")
+							if handle then
+								local weld = handle:FindFirstChildOfClass("Weld") or handle:FindFirstChild("AccessoryWeld") or handle:FindFirstChildOfClass("Motor6D")
+								local att = handle:FindFirstChildOfClass("Attachment")
+								local sm = handle:FindFirstChildOfClass("SpecialMesh")
+								local parentPart = weld and (weld.Part0 == handle and weld.Part1 or weld.Part0)
+								if not parentPart and handle.Parent and handle.Parent.Parent then
+									parentPart = handle.Parent.Parent:FindFirstChild("Head") or handle.Parent.Parent:FindFirstChild("Torso")
+								end
+
+								if not weld and parentPart then
+									for _, ch in pairs(parentPart:GetChildren()) do
+										if (ch:IsA("Weld") or ch:IsA("Motor6D")) and (ch.Part0 == handle or ch.Part1 == handle) then
+											weld = ch
+											break
+										end
+									end
+								end
+
+								local c0 = weld and (weld.Part0 == handle and weld.C0 or weld.C1)
+								local c1 = weld and (weld.Part0 == handle and weld.C1 or weld.C0)
+
+								if not c0 or not c1 then
+									if att then
+										c0 = att.CFrame
+										local pAtt = parentPart and parentPart:FindFirstChild(att.Name)
+										c1 = pAtt and pAtt.CFrame or CFrame.new()
+									end
+								end
+
+								if parentPart and parentPart.Name == "Head" and c1 then
+									local pAtt = parentPart:FindFirstChild(att and att.Name or "HairAttachment")
+									local expectedY = (pAtt and pAtt.CFrame.Position.Y) or (att and AttachmentCFrame[att.Name] and AttachmentCFrame[att.Name].Position.Y) or 0.6
+									if c1.Position.Y < expectedY - 0.15 then
+										c1 = CFrame.new(c1.Position.X, expectedY, c1.Position.Z) * c1.Rotation
+									end
+								end
+
+								local posData = {
+									AttachmentName = att and att.Name,
+									C0 = c0,
+									C1 = c1,
+									MeshScale = sm and sm.Scale,
+									MeshOffset = sm and sm.Offset,
+									HandleSize = handle.Size,
+								}
+								if not accessoryPositions[acc.Name] then
+									accessoryPositions[acc.Name] = posData
+								end
+								local cleanName = acc.Name:gsub("RCTailCertified$", "")
+								if cleanName ~= acc.Name and not accessoryPositions[cleanName] then
+									accessoryPositions[cleanName] = posData
+								end
+								if aid and not accessoryPositions[tostring(aid)] then
+									accessoryPositions[tostring(aid)] = posData
+								end
+								local mNum = nil
+								if sm and sm.MeshId then
+									mNum = tostring(sm.MeshId:match("%d+"))
+								elseif handle:IsA("MeshPart") and handle.MeshId then
+									mNum = tostring(handle.MeshId:match("%d+"))
+								end
+								if mNum and not accessoryPositions[mNum] then
+									accessoryPositions[mNum] = posData
+								end
+								if att and att.Name and not accessoryPositions[att.Name] then
+									accessoryPositions[att.Name] = posData
+								end
+							end
+						end
+					end
+				end
+
+				if m2Char then scanAccPos(m2Char) end
+				if char then scanAccPos(char) end
+
 				local clothingList = {}
 				local clothesData = nil
 				local hpClothesData = {}
@@ -1783,6 +2041,8 @@
 					clothesData = {}
 					if shirtId and shirtId > 0 then clothesData["Shirt"] = shirtId end
 					if pantsId and pantsId > 0 then clothesData["Pants"] = pantsId end
+					if liveShirtTemplate and liveShirtTemplate ~= "" then clothesData["ShirtTemplate"] = liveShirtTemplate end
+					if livePantsTemplate and livePantsTemplate ~= "" then clothesData["PantsTemplate"] = livePantsTemplate end
 					if next(clothesData) == nil and charData and charData.PlayerOwnClothes then
 						if charData.PlayerOwnClothes.Shirt then clothesData["Shirt"] = charData.PlayerOwnClothes.Shirt end
 						if charData.PlayerOwnClothes.Pants then clothesData["Pants"] = charData.PlayerOwnClothes.Pants end
@@ -1802,6 +2062,8 @@
 					clothesData = {}
 					if shirtId and shirtId > 0 then clothesData["Shirt"] = shirtId end
 					if pantsId and pantsId > 0 then clothesData["Pants"] = pantsId end
+					if liveShirtTemplate and liveShirtTemplate ~= "" then clothesData["ShirtTemplate"] = liveShirtTemplate end
+					if livePantsTemplate and livePantsTemplate ~= "" then clothesData["PantsTemplate"] = livePantsTemplate end
 					if next(clothesData) == nil and charData and charData.PlayerOwnClothes then
 						if charData.PlayerOwnClothes.Shirt then clothesData["Shirt"] = charData.PlayerOwnClothes.Shirt end
 						if charData.PlayerOwnClothes.Pants then clothesData["Pants"] = charData.PlayerOwnClothes.Pants end
@@ -1832,13 +2094,34 @@
 					end
 				end
 
+				local activeNippleCol = charData.NippleColor
+				if not activeNippleCol and charData.CurrentPartList and charData.CurrentPartList["Organ"] then
+					local nip = charData.CurrentPartList["Organ"]["Left Nipple"] or charData.CurrentPartList["Organ"]["Right Nipple"]
+					if nip and nip:IsA("BasePart") then
+						activeNippleCol = nip.Color
+					end
+				end
+				if not activeNippleCol and Bundle[charData.CurrentBundle] and Bundle[charData.CurrentBundle]["NippleColor"] then
+					activeNippleCol = Bundle[charData.CurrentBundle]["NippleColor"]
+				end
+				if activeNippleCol then
+					if typeof(activeNippleCol) == "table" and activeNippleCol.R and activeNippleCol.G and activeNippleCol.B then
+						activeNippleCol = Color3.new(activeNippleCol.R, activeNippleCol.G, activeNippleCol.B)
+					end
+				end
+
 				local newBundle = {
 					["ClothingBundle"] = true,
 					["Clothing"] = clothingList,
 					["Clothes"] = clothesData,
 					["ClearClothing"] = true,
+					["Accessory"] = accessoryIds,
+					["AccessoryPositions"] = accessoryPositions,
+					["AccessoryTypes"] = accessoryTypes,
 					["Preset"] = {
-						Tone = charData.Tone,
+						Tone = activeNippleCol and "Use NippleColor" or charData.Tone or "Base",
+						NippleColor = activeNippleCol,
+						SkinTone = charData.SkinTone,
 						Face = charData.Face,
 						MeshSizeLock = charData.MeshSizeLock,
 						AccessorySizeLock = charData.AccessorySizeLock,
@@ -1874,6 +2157,10 @@
 					}
 				}
 
+				if activeNippleCol then
+					newBundle["NippleColor"] = activeNippleCol
+				end
+
 				if charData.ClothesRecolor then
 					local hasRecolor = false
 					local recolorTable = {}
@@ -1905,55 +2192,7 @@
 					end
 				end
 
-				Bundle[outfitName] = newBundle
-
-				if GUIObject.BundlesButtonFrame:FindFirstChild(outfitName) then
-					GUIObject.BundlesButtonFrame:FindFirstChild(outfitName):Destroy()
-				end
-				local BButton = Function.ButtonCreate(outfitName, GUIObject.BundlesButtonFrame)
-				BButton.BackgroundColor3 = Color3.fromRGB(90, 38, 0)
-				table.insert(BundleButtons, BButton)
-
-				local BBConnect = BButton:FindFirstChildOfClass("TextButton").MouseButton1Click:Connect(function()
-					if DetectingBundle == false then
-						checkBundle(newBundle)
-						Function.GUIUpdate()
-						local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
-						if targetPlayer and targetPlayer.Character then
-							Function.CharacterReset(SelectPlayer)
-							Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
-						end
-					elseif DetectingBundle == "export" then
-						DetectingBundle = false
-						GUIObject.Bundles.Visible = false
-						GUIObject.optionsFrame.Visible = true
-						local exportString = toBundleFormat(newBundle, outfitName)
-						if env.copy then
-							GUIObject.exportButton.Text = "Copied exported bundle!"
-							env.copy(exportString)
-						else
-							print(exportString)
-						end
-						task.delay(2, function() GUIObject.exportButton.Text = "Export Bundle" end)
-					elseif DetectingBundle == "delete" then
-						DetectingBundle = false
-						GUIObject.Bundles.Visible = false
-						GUIObject.optionsFrame.Visible = true
-						Bundle[outfitName] = nil
-						local function sanitize(str)
-							for _, char in ipairs({"/", "<", ">", "?", "*", "|", " ", "\\", '"', ":"}) do
-								str = string.gsub(str, char, "_")
-							end
-							return str
-						end
-						if env.delfile and env.isfile("RClothesLerp/Bundles/"..sanitize(outfitName)..".json") then
-							env.delfile("RClothesLerp/Bundles/"..sanitize(outfitName)..".json")
-						end
-						BButton:Destroy()
-						Function.compileOvertime()
-					end
-				end)
-				table.insert(AllConnect, BBConnect)
+				registerBundleButton(outfitName, newBundle)
 
 				if env.writefile then
 					pcall(function()
@@ -2154,12 +2393,67 @@
 				local shirtId = getClothesIdHelper(charData, "Shirt", desc, char, m2Char)
 				local pantsId = getClothesIdHelper(charData, "Pants", desc, char, m2Char)
 
-				-- Capture exact accessory positions, attachment CFrames, welds, and mesh scales from BOTH m2Char and char
+				-- Capture exact accessory positions, attachment CFrames, welds, mesh scales, and types
 				local accessoryPositions = {}
+				local accessoryTypes = {}
+
+				if desc then
+					pcall(function()
+						local accProps = {
+							HatAccessory = "HatAccessory",
+							HairAccessory = "HairAccessory",
+							FaceAccessory = "FaceAccessory",
+							NeckAccessory = "NeckAccessory",
+							ShouldersAccessory = "ShouldersAccessory",
+							FrontAccessory = "FrontAccessory",
+							BackAccessory = "BackAccessory",
+							WaistAccessory = "WaistAccessory",
+						}
+						for prop, tName in pairs(accProps) do
+							local val = desc[prop]
+							if val and type(val) == "string" and val ~= "" then
+								for idStr in string.gmatch(val, "%d+") do
+									local nId = tonumber(idStr)
+									if nId then
+										accessoryTypes[tostring(nId)] = tName
+										accessoryTypes[nId] = tName
+									end
+								end
+							end
+						end
+						local accList = desc:GetAccessories(true)
+						if accList then
+							for _, item in pairs(accList) do
+								if item.AssetId and item.AccessoryType then
+									local tName = item.AccessoryType.Name .. "Accessory"
+									if item.AccessoryType == Enum.AccessoryType.Shoulder then
+										tName = "ShouldersAccessory"
+									end
+									accessoryTypes[tostring(item.AssetId)] = tName
+									accessoryTypes[item.AssetId] = tName
+								end
+							end
+						end
+					end)
+				end
+
 				local function scanAccPos(model)
 					if not model then return end
 					for _, acc in pairs(model:GetChildren()) do
 						if acc:IsA("Accessory") then
+							local aid = acc:GetAttribute("AssetId") or (acc:FindFirstChild("AssetId") and acc.AssetId.Value)
+							if aid and tonumber(aid) then
+								local numId = tonumber(aid)
+								if acc.AccessoryType and acc.AccessoryType ~= Enum.AccessoryType.Unknown then
+									local tName = acc.AccessoryType.Name .. "Accessory"
+									if acc.AccessoryType == Enum.AccessoryType.Shoulder then
+										tName = "ShouldersAccessory"
+									end
+									accessoryTypes[tostring(numId)] = tName
+									accessoryTypes[numId] = tName
+								end
+							end
+
 							local handle = acc:FindFirstChild("Handle") or acc:FindFirstChildOfClass("BasePart")
 							if handle then
 								local weld = handle:FindFirstChildOfClass("Weld") or handle:FindFirstChild("AccessoryWeld") or handle:FindFirstChildOfClass("Motor6D")
@@ -2170,15 +2464,52 @@
 									parentPart = handle.Parent.Parent:FindFirstChild("Head") or handle.Parent.Parent:FindFirstChild("Torso")
 								end
 
+								if not weld and parentPart then
+									for _, ch in pairs(parentPart:GetChildren()) do
+										if (ch:IsA("Weld") or ch:IsA("Motor6D")) and (ch.Part0 == handle or ch.Part1 == handle) then
+											weld = ch
+											break
+										end
+									end
+								end
+
+								local c0 = weld and (weld.Part0 == handle and weld.C0 or weld.C1)
+								local c1 = weld and (weld.Part0 == handle and weld.C1 or weld.C0)
+
+								if not c0 or not c1 then
+									if att then
+										c0 = att.CFrame
+										local pAtt = parentPart and parentPart:FindFirstChild(att.Name)
+										c1 = pAtt and pAtt.CFrame or CFrame.new()
+									end
+								end
+
+								if parentPart and parentPart.Name == "Head" and c1 then
+									local pAtt = parentPart:FindFirstChild(att and att.Name or "HairAttachment")
+									local expectedY = (pAtt and pAtt.CFrame.Position.Y) or (att and AttachmentCFrame[att.Name] and AttachmentCFrame[att.Name].Position.Y) or 0.6
+									if c1.Position.Y < expectedY - 0.15 then
+										c1 = CFrame.new(c1.Position.X, expectedY, c1.Position.Z) * c1.Rotation
+									end
+								end
+
 								local posData = {
 									AttachmentName = att and att.Name,
-									C0 = weld and weld.C0,
-									C1 = weld and weld.C1,
+									C0 = c0,
+									C1 = c1,
 									MeshScale = sm and sm.Scale,
 									MeshOffset = sm and sm.Offset,
 									HandleSize = handle.Size,
 								}
-								accessoryPositions[acc.Name] = posData
+								if not accessoryPositions[acc.Name] then
+									accessoryPositions[acc.Name] = posData
+								end
+								local cleanName = acc.Name:gsub("RCTailCertified$", "")
+								if cleanName ~= acc.Name and not accessoryPositions[cleanName] then
+									accessoryPositions[cleanName] = posData
+								end
+								if aid and not accessoryPositions[tostring(aid)] then
+									accessoryPositions[tostring(aid)] = posData
+								end
 								-- Unique mesh ID indexing (guaranteed to match without name confusion):
 								local mNum = nil
 								if sm and sm.MeshId then
@@ -2186,17 +2517,64 @@
 								elseif handle:IsA("MeshPart") and handle.MeshId then
 									mNum = tostring(handle.MeshId:match("%d+"))
 								end
-								if mNum then
+								if mNum and not accessoryPositions[mNum] then
 									accessoryPositions[mNum] = posData
+								end
+								if att and att.Name and not accessoryPositions[att.Name] then
+									accessoryPositions[att.Name] = posData
 								end
 							end
 						end
 					end
 				end
 
-				-- Scan Method 2 model first (active RoCC accessories), then base character
-				scanAccPos(m2Char)
-				scanAccPos(char)
+				-- Scan Method 2 model first (active RoCC accessories), then base character (only for uncaptured items)
+				if m2Char then
+					scanAccPos(m2Char)
+				end
+				if char then
+					scanAccPos(char)
+				end
+
+				local liveShirt = (char and char:FindFirstChildOfClass("Shirt"))
+					or (m2Char and m2Char:FindFirstChildOfClass("Shirt"))
+					or (charData and charData.OldestClothings and charData.OldestClothings["Shirt"])
+				local livePants = (char and char:FindFirstChildOfClass("Pants"))
+					or (m2Char and m2Char:FindFirstChildOfClass("Pants"))
+					or (charData and charData.OldestClothings and charData.OldestClothings["Pants"])
+
+				local liveShirtTemplate = (liveShirt and liveShirt.ShirtTemplate ~= "" and liveShirt.ShirtTemplate)
+					or (charData and charData.PlayerOwnAvatar and charData.PlayerOwnAvatar.ShirtTemplate ~= "" and charData.PlayerOwnAvatar.ShirtTemplate)
+					or (Function.CharacterClothesCache and Function.CharacterClothesCache[SelectPlayer] and Function.CharacterClothesCache[SelectPlayer].ShirtTemplate)
+				local livePantsTemplate = (livePants and livePants.PantsTemplate ~= "" and livePants.PantsTemplate)
+					or (charData and charData.PlayerOwnAvatar and charData.PlayerOwnAvatar.PantsTemplate ~= "" and charData.PlayerOwnAvatar.PantsTemplate)
+					or (Function.CharacterClothesCache and Function.CharacterClothesCache[SelectPlayer] and Function.CharacterClothesCache[SelectPlayer].PantsTemplate)
+
+				if not shirtId and liveShirtTemplate then
+					shirtId = tonumber(liveShirtTemplate:match("%d+"))
+				end
+				if not pantsId and livePantsTemplate then
+					pantsId = tonumber(livePantsTemplate:match("%d+"))
+				end
+
+				if Function.ClothesTemplateCache then
+					if shirtId and liveShirtTemplate then
+						Function.ClothesTemplateCache[shirtId] = liveShirtTemplate
+						Function.ClothesTemplateCache[tostring(shirtId)] = liveShirtTemplate
+					end
+					if pantsId and livePantsTemplate then
+						Function.ClothesTemplateCache[pantsId] = livePantsTemplate
+						Function.ClothesTemplateCache[tostring(pantsId)] = livePantsTemplate
+					end
+				end
+				if Function.CharacterClothesCache then
+					Function.CharacterClothesCache[SelectPlayer] = {
+						ShirtTemplate = liveShirtTemplate,
+						PantsTemplate = livePantsTemplate,
+						Shirt = shirtId,
+						Pants = pantsId,
+					}
+				end
 
 				local clothesData = nil
 				local clothingList = {}
@@ -2206,6 +2584,8 @@
 					clothesData = {}
 					if shirtId and shirtId > 0 then clothesData["Shirt"] = shirtId end
 					if pantsId and pantsId > 0 then clothesData["Pants"] = pantsId end
+					if liveShirtTemplate and liveShirtTemplate ~= "" then clothesData["ShirtTemplate"] = liveShirtTemplate end
+					if livePantsTemplate and livePantsTemplate ~= "" then clothesData["PantsTemplate"] = livePantsTemplate end
 					if next(clothesData) == nil and charData and charData.PlayerOwnClothes then
 						if charData.PlayerOwnClothes.Shirt then clothesData["Shirt"] = charData.PlayerOwnClothes.Shirt end
 						if charData.PlayerOwnClothes.Pants then clothesData["Pants"] = charData.PlayerOwnClothes.Pants end
@@ -2225,6 +2605,8 @@
 					clothesData = {}
 					if shirtId and shirtId > 0 then clothesData["Shirt"] = shirtId end
 					if pantsId and pantsId > 0 then clothesData["Pants"] = pantsId end
+					if liveShirtTemplate and liveShirtTemplate ~= "" then clothesData["ShirtTemplate"] = liveShirtTemplate end
+					if livePantsTemplate and livePantsTemplate ~= "" then clothesData["PantsTemplate"] = livePantsTemplate end
 					if next(clothesData) == nil and charData and charData.PlayerOwnClothes then
 						if charData.PlayerOwnClothes.Shirt then clothesData["Shirt"] = charData.PlayerOwnClothes.Shirt end
 						if charData.PlayerOwnClothes.Pants then clothesData["Pants"] = charData.PlayerOwnClothes.Pants end
@@ -2261,6 +2643,7 @@
 					["Body Color"] = bodyColorsData,
 					["Accessory"] = accessoryIds,
 					["AccessoryPositions"] = accessoryPositions,
+					["AccessoryTypes"] = accessoryTypes,
 					["Clothes"] = clothesData,
 					["Clothing"] = clothingList,
 					["HPClothes"] = hpClothesData,
@@ -2269,7 +2652,7 @@
 						SkinTone = charData.SkinTone,
 						Face = charData.Face,
 						MeshSizeLock = charData.MeshSizeLock,
-						AccessorySizeLock = true,
+						AccessorySizeLock = (charData.AccessorySizeLock == true),
 						MeshBasePartInvisible = charData.MeshBasePartInvisible,
 						BodyPartPhysics = charData.BodyPartPhysics,
 						PhysicsObeyGravity = charData.PhysicsObeyGravity,
@@ -2317,6 +2700,8 @@
 						activeNippleCol = Color3.new(activeNippleCol.R, activeNippleCol.G, activeNippleCol.B)
 					end
 					newBundle["NippleColor"] = activeNippleCol
+					newBundle["Preset"].NippleColor = activeNippleCol
+					newBundle["Preset"].Tone = "Use NippleColor"
 				end
 
 				if charData.CatalogTail and #charData.CatalogTail > 0 then
@@ -2430,57 +2815,7 @@
 					end)
 				end
 
-				-- Add into active memory Bundle table
-				Bundle[outfitName] = newBundle
-
-				-- Create button in Bundles tab
-				local buttonExists = false
-				for _, child in pairs(GUIObject.BundlesButtonFrame:GetChildren()) do
-					if child.Name == outfitName then
-						buttonExists = true
-						break
-					end
-				end
-				if not buttonExists then
-					local BButton = Function.ButtonCreate(outfitName, GUIObject.BundlesButtonFrame)
-					local BundleButtonConnect
-					BundleButtonConnect = BButton:FindFirstChildOfClass("TextButton").MouseButton1Click:Connect(function()
-						if DetectingBundle == false then
-							PlayerData[SelectPlayer].CurrentBundle = outfitName
-							checkBundle(newBundle)
-							Function.GUIUpdate()
-							local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
-							if targetPlayer and targetPlayer.Character then
-								Function.CharacterReset(SelectPlayer)
-								Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
-							end
-						elseif DetectingBundle == "delete" then
-							Bundle[outfitName] = nil
-							if env.delfile then
-								pcall(function()
-									local function sanitize(str)
-										for _, char in ipairs({"/", "<", ">", "?", "*", "|", " ", "\\", '"', ":"}) do
-											str = string.gsub(str, char, "_")
-										end
-										return str
-									end
-									env.delfile("RClothesLerp/Bundles/" .. sanitize(outfitName) .. ".json")
-								end)
-							end
-							BButton:Destroy()
-							DetectingBundle = false
-							Function.GUIUpdate()
-							Function.compileOvertime()
-						elseif DetectingBundle == "export" then
-							if env.copy then
-								env.copy(toBundleFormat(newBundle, outfitName))
-							end
-							DetectingBundle = false
-							Function.GUIUpdate()
-						end
-					end)
-					table.insert(AllConnect, BundleButtonConnect)
-				end
+				registerBundleButton(outfitName, newBundle)
 
 				-- Copy formatted Luau bundle table to clipboard
 				pcall(function()
@@ -2635,86 +2970,7 @@
 									warn("⚠️ Bundle "..name.." has been aborted! ⚠️")
 									continue
 								end
-								Bundle[name] = input
-
-								if GUIObject.BundlesButtonFrame:FindFirstChild(name) then
-									GUIObject.BundlesButtonFrame:FindFirstChild(name):Destroy()
-								end
-								local BButton = Function.ButtonCreate(name, GUIObject.BundlesButtonFrame)
-								if input.ClothingBundle and input.ClothingBundle == true then
-									BButton.BackgroundColor3 = Color3.fromRGB(90, 38, 0)
-								elseif input.IsPreset == true then
-									BButton.BackgroundColor3 = Color3.fromRGB(25, 84, 0)
-								end
-								table.insert(BundleButtons, BButton)
-								local BBConnect = BButton:FindFirstChildOfClass("TextButton").MouseButton1Click:Connect(function()
-									if DetectingBundle == false then
-										if (not input.ClothingBundle or input.ClothingBundle == false) and (not input.IsPreset or input.IsPreset == false) then
-											PlayerData[SelectPlayer].CurrentBundle = BButton.Name
-										end
-
-										checkBundle(input)
-										Function.GUIUpdate()
-										local targetPlayer = PS:FindFirstChild(SelectPlayer) or Player
-										if targetPlayer and targetPlayer.Character then
-											Function.CharacterReset(SelectPlayer)
-											Function.CharacterExecute(targetPlayer.Character, SelectPlayer)
-										end
-									elseif DetectingBundle == "loadup" then
-										DetectingBundle = false
-										GUIObject.Bundles.Visible = false
-										GUIObject.optionsFrame.Visible = true
-										if BButton.Name == "nil" then
-											loadupBundle = ""
-										else
-											loadupBundle = BButton.Name
-										end
-									elseif DetectingBundle == "export" then
-										DetectingBundle = false
-										GUIObject.Bundles.Visible = false
-										GUIObject.optionsFrame.Visible = true
-
-										local exportString = toBundleFormat(input, BButton.Name)
-
-										local successfulCopy = pcall(function()
-											if env.copy then
-												GUIObject.exportButton.Text = "Copied exported bundle!"
-												env.copy(exportString)
-											else
-												error("no")
-											end
-										end)
-										if not successfulCopy then
-											GUIObject.exportButton.Text = "CANNOT COPY, EXPORTED TO CONSOLE"
-											print(exportString)
-										end
-										task.delay(2,function()
-											GUIObject.exportButton.Text = "Export Bundle"
-										end)
-									elseif DetectingBundle == "delete" then
-										DetectingBundle = false
-										GUIObject.Bundles.Visible = false
-										GUIObject.optionsFrame.Visible = true
-
-										Bundle[name] = nil
-										if env.delfile then
-											pcall(function()
-												local p = "RClothesLerp/Bundles/"..sanitize(name)..".json"
-												if env.isfile and env.isfile(p) then
-													env.delfile(p)
-												end
-											end)
-										end
-										GUIObject.delButton.Text = name.." Deleted"
-										BButton:Destroy()
-										Function.compileOvertime()
-										task.delay(2,function()
-											GUIObject.delButton.Text = "Delete Bundle"
-										end)
-									end
-
-								end)
-								table.insert(AllConnect, BBConnect)
+								registerBundleButton(name, input)
 								table.sort(BundleButtons, function(a,b)
 									return a.Name:lower() < b.Name:lower()
 								end)

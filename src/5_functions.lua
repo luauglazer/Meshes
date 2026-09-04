@@ -302,11 +302,16 @@
 	function Function.AttachmentCreate(Character)
 		for Attach, ParentName in pairs(AttachmentParent) do
 			local Base = Character:FindFirstChild(ParentName)
-
-			if Base and not Base:FindFirstChild(Attach) then
-				local Attachment = Instance.new("Attachment", Base)
-				Attachment.Name = Attach
-				Attachment.CFrame = AttachmentCFrame[Attach]
+			if Base then
+				local existing = Base:FindFirstChild(Attach)
+				if not existing then
+					local Attachment = Instance.new("Attachment", Base)
+					Attachment.Name = Attach
+					Attachment.CFrame = AttachmentCFrame[Attach]
+				elseif Base.Name == "Head" and AttachmentCFrame[Attach] and existing.CFrame.Position.Y < AttachmentCFrame[Attach].Position.Y - 0.15 then
+					-- Self-heal any head attachment that was shifted down by old bug:
+					existing.CFrame = AttachmentCFrame[Attach]
+				end
 			end
 		end
 	end
@@ -602,6 +607,11 @@
 		end
 	end
 
+	local ClothesTemplateCache = {}
+	local CharacterClothesCache = {}
+	Function.ClothesTemplateCache = ClothesTemplateCache
+	Function.CharacterClothesCache = CharacterClothesCache
+
 	function Function.CapturePlayerOwnAvatar(Name)
 		local targetPlr = PS:FindFirstChild(Name) or Player
 		local char = targetPlr and targetPlr.Character
@@ -649,6 +659,22 @@
 				RightLegColor3 = desc.RightLegColor,
 			}
 		end
+
+		if desc and desc.Shirt and desc.Shirt > 0 and sTemplate ~= "" then
+			ClothesTemplateCache[desc.Shirt] = sTemplate
+			ClothesTemplateCache[tostring(desc.Shirt)] = sTemplate
+		end
+		if desc and desc.Pants and desc.Pants > 0 and pTemplate ~= "" then
+			ClothesTemplateCache[desc.Pants] = pTemplate
+			ClothesTemplateCache[tostring(desc.Pants)] = pTemplate
+		end
+
+		CharacterClothesCache[Name] = {
+			ShirtTemplate = sTemplate,
+			PantsTemplate = pTemplate,
+			Shirt = desc and desc.Shirt,
+			Pants = desc and desc.Pants,
+		}
 
 		if PlayerData[Name] then
 			PlayerData[Name].PlayerOwnAvatar = {
@@ -1062,10 +1088,10 @@
 
 		for _, v in pairs(Character:GetDescendants()) do
 			if v:IsA("Accessory") then
-				local Handle = v:FindFirstChildOfClass("Part") or v:FindFirstChildOfClass("MeshPart")
+				local Handle = v:FindFirstChild("Handle") or v:FindFirstChildOfClass("Part") or v:FindFirstChildOfClass("MeshPart") or v:FindFirstChildOfClass("BasePart")
 
 				if Handle then
-					if PlayerData[Data].CurrentBundle ~= "nil" then
+					if PlayerData[Data].CurrentBundle ~= "nil" and PlayerData[Data].CurrentBundle ~= "Default" then
 						local curB = Bundle[PlayerData[Data].CurrentBundle]
 						if curB and curB["Accessory"] and #curB["Accessory"] > 0 then
 							PlayerData[Data].CurrentPartList.ParentTransparency[Handle] = {D = 0, T = 1}
@@ -1074,11 +1100,10 @@
 						local Attachment = Handle:FindFirstChildOfClass("Attachment")
 						if Attachment then
 							local SpecialMesh = Handle:FindFirstChildOfClass("SpecialMesh")
-							local Weld = Handle:FindFirstChildOfClass("Weld")
+							local Weld = Handle:FindFirstChildOfClass("Weld") or Handle:FindFirstChild("AccessoryWeld") or Handle:FindFirstChildOfClass("Motor6D")
 							local ParentAttachment = CharacterAttachment[Attachment.Name]
 
-							if Weld and SpecialMesh and ParentAttachment and Attachment then
-
+							if Weld and ParentAttachment and Attachment then
 								local HandleParent = ParentAttachment.Parent
 								local Size = HandleParent.Size
 								local HandleSize = Handle.Size
@@ -1087,10 +1112,23 @@
 									local XMultiply, YMultiply, ZMultiply = Function.MultiplyCalculate(Size, BodyPartSize[HandleParent.Name])
 
 									local AttachCF = Attachment.CFrame
-									local PAttachCF = AttachmentCFrame[ParentAttachment.Name]
-									local Scale = SpecialMesh.Scale
+									local PAttachCF = (ParentAttachment and ParentAttachment.CFrame) or AttachmentCFrame[ParentAttachment.Name] or CFrame.new()
+									local Scale = SpecialMesh and SpecialMesh.Scale or Vector3.new(1, 1, 1)
 
-									PlayerData[Data].CurrentPartList.RealtimeUpdateList.Accessory[Handle] = {Scale = Scale, SpecialMesh = SpecialMesh, Size = Size, CFrame = AttachCF, Attachment = Attachment, ParentAttachment = ParentAttachment, Base = HandleParent, Weld = Weld}
+									PlayerData[Data].CurrentPartList.RealtimeUpdateList.Accessory[Handle] = {
+										Scale = Scale,
+										SpecialMesh = SpecialMesh,
+										Size = HandleSize,
+										CFrame = AttachCF,
+										Attachment = Attachment,
+										ParentAttachment = ParentAttachment,
+										ParentCFrame = PAttachCF,
+										Base = HandleParent,
+										Weld = Weld,
+										HasSavedPos = true,
+										OriginalC0 = Weld.C0,
+										OriginalC1 = Weld.C1,
+									}
 								end
 							end
 						end
@@ -1185,7 +1223,11 @@
 
 	function Function.AccessoryAdd(Character, v, CharacterAttachment, Data)
 		local CAccessory = v:Clone()
-		local CHandle = CAccessory:FindFirstChildOfClass("Part")
+		local CHandle = CAccessory:FindFirstChild("Handle") or CAccessory:FindFirstChildOfClass("Part") or CAccessory:FindFirstChildOfClass("MeshPart") or CAccessory:FindFirstChildOfClass("BasePart")
+		if not CHandle then
+			CAccessory:Destroy()
+			return
+		end
 		local CAttachment = CHandle:FindFirstChildOfClass("Attachment")
 		local CSpecialMesh = CHandle:FindFirstChildOfClass("SpecialMesh")
 		CAccessory:AddTag("RoClothes")
@@ -1196,9 +1238,17 @@
 			setUpTailAccessory(Character, CAccessory, Data)
 		end
 
-		local CParentAttachment = CharacterAttachment[CAttachment.Name]
+		local CParentAttachment = CAttachment and CharacterAttachment[CAttachment.Name]
+		if not CParentAttachment and not CAttachment then
+			local headAtt = CharacterAttachment["HatAttachment"]
+			if headAtt then
+				CParentAttachment = headAtt
+				CAttachment = Instance.new("Attachment", CHandle)
+				CAttachment.Name = "HatAttachment"
+			end
+		end
 
-		if CParentAttachment then
+		if CParentAttachment and CAttachment then
 			local HandleParent = CParentAttachment.Parent
 			local Size = HandleParent.Size
 			local HandleSize = CHandle.Size
@@ -1221,8 +1271,10 @@
 			elseif HandleParent.Name == "Head" and HandleParent:IsA("MeshPart") then
 				if HandleParent:FindFirstChild("OriginalSize") then
 					BodySize = HandleParent:FindFirstChild("OriginalSize").Value
-				else
+				elseif CalcSize.X <= 1.5 and CalcSize.Y >= 1.1 then
 					BodySize = BodyPartSize["HeadMeshFix"]
+				else
+					BodySize = BodyPartSize["Head"]
 				end
 			elseif HandleParent.Name == "Head" and HandleParent:FindFirstChildOfClass("SpecialMesh") then
 				local SM:SpecialMesh = HandleParent:FindFirstChildOfClass("SpecialMesh")
@@ -1261,19 +1313,36 @@
 				ZMultiply = ZMultiply*ZMS
 			end
 
+			-- Head accessories are 1:1 UGC alignment and must never be squashed, stretched, or lowered:
+			if HandleParent.Name == "Head" then
+				XMultiply = 1
+				YMultiply = 1
+				ZMultiply = 1
+			end
+
 			local CAttachCF = CAttachment.CFrame
-			local PAttachCF = AttachmentCFrame[CParentAttachment.Name]
-			local Scale = CSpecialMesh.Scale
+			local PAttachCF = (CParentAttachment and CParentAttachment.CFrame) or (CParentAttachment and AttachmentCFrame[CParentAttachment.Name]) or CFrame.new()
+			local Scale = CSpecialMesh and CSpecialMesh.Scale or Vector3.new(1, 1, 1)
+
+			local targetC0 = CAttachCF
+			local targetC1 = PAttachCF
 
 			if PlayerData[Data].AccessorySizeLock == false then
 				CHandle.Size = Vector3.new(HandleSize.X * XMultiply, HandleSize.Y * YMultiply, HandleSize.Z * ZMultiply)
-				CSpecialMesh.Scale = Vector3.new(Scale.X * XMultiply, Scale.Y * YMultiply, Scale.Z * ZMultiply)CAttachment.CFrame = CFrame.new(CAttachCF.Position.X * XMultiply, CAttachCF.Position.Y * YMultiply, CAttachCF.Position.Z * ZMultiply) * CAttachCF.Rotation
+				if CSpecialMesh then
+					CSpecialMesh.Scale = Vector3.new(Scale.X * XMultiply, Scale.Y * YMultiply, Scale.Z * ZMultiply)
+				end
+				targetC0 = CFrame.new(CAttachCF.Position.X * XMultiply, CAttachCF.Position.Y * YMultiply, CAttachCF.Position.Z * ZMultiply) * CAttachCF.Rotation
+				CAttachment.CFrame = targetC0
 				if not PlayerData[Data].CurrentPartList.physicsTails[CAccessory] then
-					CParentAttachment.CFrame = CFrame.new(PAttachCF.Position.X * XMultiply, PAttachCF.Position.Y * YMultiply, PAttachCF.Position.Z * ZMultiply) * PAttachCF.Rotation
+					targetC1 = CFrame.new(PAttachCF.Position.X * XMultiply, PAttachCF.Position.Y * YMultiply, PAttachCF.Position.Z * ZMultiply) * PAttachCF.Rotation
 				end
 			else
 				CHandle.Size = HandleSize
-				CSpecialMesh.Scale = Scale
+				if CSpecialMesh then
+					CSpecialMesh.Scale = Scale
+				end
+				CAttachment.CFrame = CAttachCF
 			end
 			
 			CHandle.CanCollide = false
@@ -1290,8 +1359,8 @@
 			Weld.Part0 = CHandle
 			Weld.Part1 = CParentAttachment.Parent
 
-			Weld.C0 = CAttachment.CFrame
-			Weld.C1 = CParentAttachment.CFrame
+			Weld.C0 = targetC0
+			Weld.C1 = targetC1
 
 			-- Restore exact saved accessory scales/offsets if recorded in bundle:
 			local curBName = PlayerData[Data] and PlayerData[Data].CurrentBundle
@@ -1306,42 +1375,61 @@
 					meshNum = tostring(CHandle.MeshId:match("%d+"))
 				end
 
-				-- Strictly match by unique mesh ID or accessory name to avoid attachment collision bugs:
+				local aId = CAccessory:GetAttribute("AssetId") or (CAccessory:FindFirstChild("AssetId") and CAccessory.AssetId.Value) or (v:GetAttribute("AssetId")) or (v:FindFirstChild("AssetId") and v.AssetId.Value)
+				local aIdStr = aId and tostring(aId)
+
+				local cleanName = CAccessory.Name:gsub("RCTailCertified$", "")
+				local cleanVName = v.Name:gsub("RCTailCertified$", "")
+
+				-- Match by unique mesh ID, asset ID, clean accessory name, or attachment name fallback:
 				if meshNum and accPosBundle[meshNum] then
 					savedPos = accPosBundle[meshNum]
+				elseif aIdStr and accPosBundle[aIdStr] then
+					savedPos = accPosBundle[aIdStr]
 				elseif accPosBundle[CAccessory.Name] then
 					savedPos = accPosBundle[CAccessory.Name]
 				elseif accPosBundle[v.Name] then
 					savedPos = accPosBundle[v.Name]
+				elseif accPosBundle[cleanName] then
+					savedPos = accPosBundle[cleanName]
+				elseif accPosBundle[cleanVName] then
+					savedPos = accPosBundle[cleanVName]
+				elseif CAttachment and accPosBundle[CAttachment.Name] then
+					savedPos = accPosBundle[CAttachment.Name]
 				end
 			end
 
-			if savedPos then
-				local function toCF(val)
-					if typeof(val) == "CFrame" then return val end
-					if typeof(val) == "table" and val.CFrameComponents then
-						return CFrame.new(table.unpack(val.CFrameComponents))
-					end
-					return nil
+			local hasSavedWeld = false
+			local function toCF(val)
+				if typeof(val) == "CFrame" then return val end
+				if typeof(val) == "table" and val.CFrameComponents then
+					return CFrame.new(table.unpack(val.CFrameComponents))
 				end
-				local function toV3(val)
-					if typeof(val) == "Vector3" then return val end
-					if typeof(val) == "table" and val.X and val.Y and val.Z then
-						return Vector3.new(val.X, val.Y, val.Z)
-					end
-					return nil
+				return nil
+			end
+			local function toV3(val)
+				if typeof(val) == "Vector3" then return val end
+				if typeof(val) == "table" and val.X and val.Y and val.Z then
+					return Vector3.new(val.X, val.Y, val.Z)
 				end
+				return nil
+			end
 
+			if savedPos then
 				local c0 = toCF(savedPos.C0)
 				local c1 = toCF(savedPos.C1)
 				local mScale = toV3(savedPos.MeshScale)
 				local mOffset = toV3(savedPos.MeshOffset)
 				local hSize = toV3(savedPos.HandleSize)
 
-				-- Only apply static weld offsets if specifically defined, NEVER animated relative CFrame
 				if c0 and c1 then
+					-- Self-heal any head accessory C1 that was saved in a lowered state by old bug:
+					if HandleParent.Name == "Head" and PAttachCF and c1.Position.Y < PAttachCF.Position.Y - 0.15 then
+						c1 = CFrame.new(c1.Position.X, PAttachCF.Position.Y, c1.Position.Z) * c1.Rotation
+					end
 					Weld.C0 = c0
 					Weld.C1 = c1
+					hasSavedWeld = true
 				end
 				if mScale and CSpecialMesh then
 					CSpecialMesh.Scale = mScale
@@ -1366,41 +1454,84 @@
 			end)
 			table.insert(AllConnect,detectRemoval)
 
-			PlayerData[Data].CurrentPartList.RealtimeUpdateList.Accessory[CHandle] = {Scale = Scale, SpecialMesh = CSpecialMesh, Size = Size, CFrame = CAttachCF, Attachment = CAttachment, ParentAttachment = CParentAttachment, Base = HandleParent, Weld = Weld}
+			PlayerData[Data].CurrentPartList.RealtimeUpdateList.Accessory[CHandle] = {
+				Scale = Scale,
+				SpecialMesh = CSpecialMesh,
+				Size = (savedPos and savedPos.HandleSize and toV3(savedPos.HandleSize)) or HandleSize,
+				CFrame = CAttachCF,
+				Attachment = CAttachment,
+				ParentAttachment = CParentAttachment,
+				ParentCFrame = PAttachCF,
+				Base = HandleParent,
+				Weld = Weld,
+				HasSavedPos = (HandleParent.Name == "Head") or hasSavedWeld,
+				OriginalC0 = Weld.C0,
+				OriginalC1 = Weld.C1,
+			}
 		end
 	end
 
-	function Function.HumanoidDescriptionSet(AccessoryList, ClothesList, HumanoidDescription)
+	local ProductInfoCache = {}
+
+	function Function.HumanoidDescriptionSet(AccessoryList, ClothesList, HumanoidDescription, KnownTypes)
 		local IsAdded = false
 
 		if AccessoryList ~= nil then
 			local amountFinished = 0
-			local totalAccessories = 0
-			for _, Id in pairs(AccessoryList) do
-				totalAccessories += 1
-				task.spawn(function()
-					local success, output = pcall(function()
-						local AccessoryInfo = MPS:GetProductInfo(Id)
-						local Type = AccessoryType[AccessoryInfo.AssetTypeId] or "HatAccessory"
+			local pending = {}
 
-						if HumanoidDescription[Type] == "" then
-							HumanoidDescription[Type] = tostring(Id)
-						else
-							HumanoidDescription[Type] = HumanoidDescription[Type]..", "..Id
-						end
-					end)
-					if not success then
-						warn('Accessory ID "'..tostring(Id)..'" could not be loaded: ' .. tostring(output))
+			for _, Id in pairs(AccessoryList) do
+				local numId = tonumber(Id)
+				local strId = tostring(Id)
+				local cachedType = (KnownTypes and (KnownTypes[Id] or KnownTypes[strId] or (numId and KnownTypes[numId])))
+					or ProductInfoCache[Id]
+					or ProductInfoCache[strId]
+					or (numId and ProductInfoCache[numId])
+
+				if cachedType and cachedType ~= "" then
+					if HumanoidDescription[cachedType] == "" then
+						HumanoidDescription[cachedType] = strId
 					else
-						IsAdded = true
+						HumanoidDescription[cachedType] = HumanoidDescription[cachedType] .. ", " .. strId
 					end
-					amountFinished += 1
-				end)
+					IsAdded = true
+				else
+					table.insert(pending, Id)
+				end
 			end
-			local timeout = 0
-			while amountFinished < totalAccessories and timeout < 60 do
-				task.wait(0.05)
-				timeout += 1
+
+			if #pending > 0 then
+				local totalAccessories = #pending
+				for _, Id in pairs(pending) do
+					task.spawn(function()
+						local success, output = pcall(function()
+							local AccessoryInfo = MPS:GetProductInfo(Id)
+							local Type = AccessoryType[AccessoryInfo.AssetTypeId] or "HatAccessory"
+							ProductInfoCache[Id] = Type
+							ProductInfoCache[tostring(Id)] = Type
+							if tonumber(Id) then
+								ProductInfoCache[tonumber(Id)] = Type
+							end
+
+							if HumanoidDescription[Type] == "" then
+								HumanoidDescription[Type] = tostring(Id)
+							else
+								HumanoidDescription[Type] = HumanoidDescription[Type] .. ", " .. Id
+							end
+						end)
+						if not success then
+							warn('Accessory ID "' .. tostring(Id) .. '" could not be loaded: ' .. tostring(output))
+						else
+							IsAdded = true
+						end
+						amountFinished += 1
+					end)
+				end
+				local timeout = 0
+				while amountFinished < totalAccessories and timeout < 40 do
+					task.wait(0.05)
+					timeout += 1
+				end
 			end
 		end
 
@@ -1425,15 +1556,27 @@
 	end
 
 	function Function.HumanoidDescriptionLoader(Character, HumanoidDescription, CharacterAttachment, UseBodyColor, Data, isCatalogUsername, oChar, tailCheck)
-		local AccessoryLoaderModel = Instance.new("Model", game)
+		local AccessoryLoaderModel = Instance.new("Model")
+		AccessoryLoaderModel.Name = "RCAccessoryLoader"
 		AccessoryLoaderModel.Archivable = not hidden
 		AccessoryLoaderModel:AddTag("RoClothes")
+		AccessoryLoaderModel.Parent = workspace
 		local HumanoidAccessoryLoader = Instance.new("Humanoid", AccessoryLoaderModel)
 
 		HumanoidAccessoryLoader:ApplyDescription(HumanoidDescription)
+
+		local function hasLoadedChildren(model)
+			for _, v in ipairs(model:GetChildren()) do
+				if v:IsA("Accessory") or v:IsA("Clothing") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") then
+					return true
+				end
+			end
+			return false
+		end
+
 		local waitCount = 0
-		while #AccessoryLoaderModel:GetChildren() <= 2 and waitCount < 30 do
-			task.wait(0.05)
+		while not hasLoadedChildren(AccessoryLoaderModel) and waitCount < 20 do
+			task.wait(0.02)
 			waitCount += 1
 		end
 
@@ -1661,23 +1804,23 @@
 	function Function.AccessoryLoaderFunction(Character, CharacterAttachment, SelectBundle, Data)
 		local Human = Character:FindFirstChildOfClass("Humanoid")
 
-		local HumanoidDescription = Instance.new("HumanoidDescription", game)
-		local HumanoidDescriptionTail = Instance.new("HumanoidDescription", game)
+		local HumanoidDescription = Instance.new("HumanoidDescription")
+		local HumanoidDescriptionTail = Instance.new("HumanoidDescription")
 
-		local IsAdded = Function.HumanoidDescriptionSet(Bundle[SelectBundle]["Accessory"], Bundle[SelectBundle]["Clothes"], HumanoidDescription)
-		local IsTail = Function.HumanoidDescriptionSet(Bundle[SelectBundle]["TailAccessory"], nil, HumanoidDescriptionTail)
+		local bAccTypes = Bundle[SelectBundle] and Bundle[SelectBundle]["AccessoryTypes"]
+		local IsAdded = Function.HumanoidDescriptionSet(Bundle[SelectBundle]["Accessory"], Bundle[SelectBundle]["Clothes"], HumanoidDescription, bAccTypes)
+		local IsTail = Function.HumanoidDescriptionSet(Bundle[SelectBundle]["TailAccessory"], nil, HumanoidDescriptionTail, bAccTypes)
 
 		if IsAdded == true then
-
 			Function.HumanoidDescriptionLoader(Character, HumanoidDescription, CharacterAttachment, false, Data)
+		else
+			pcall(function() HumanoidDescription:Destroy() end)
 		end
 		if IsTail == true then
-
 			Function.HumanoidDescriptionLoader(Character, HumanoidDescriptionTail, CharacterAttachment, false, Data, nil, nil, true)
+		else
+			pcall(function() HumanoidDescriptionTail:Destroy() end)
 		end
-
-		HumanoidDescription:Destroy()
-		HumanoidDescriptionTail:Destroy()
 	end
 
 	function Function.CatalogLoader(Character, CharacterAttachment, Data, oChar)
@@ -1752,21 +1895,62 @@
 				Function.HumanoidDescriptionLoader(Character, HumanoidDescription, CharacterAttachment, true, Data, true, oChar)
 			end)
 		end
-		local HumanoidDescription = Instance.new("HumanoidDescription", game.Workspace)
-		local HumanoidDescriptionTail = Instance.new("HumanoidDescription", game.Workspace)
 
-		local IsAdded = Function.HumanoidDescriptionSet(PlayerData[Data].CatalogAccessory, PlayerData[Data].CatalogClothes, HumanoidDescription)
-		local IsTail = Function.HumanoidDescriptionSet(PlayerData[Data].CatalogTail, nil, HumanoidDescriptionTail)
+		local curBName = PlayerData[Data] and PlayerData[Data].CurrentBundle
+		local curBundle = (curBName and curBName ~= "nil" and Bundle[curBName])
 
-		if IsAdded == true then
-			Function.HumanoidDescriptionLoader(Character, HumanoidDescription, CharacterAttachment, false, Data, nil, nil)
-		else
-			HumanoidDescription:Destroy()
+		local catalogAcc = {}
+		if PlayerData[Data].CatalogAccessory then
+			for _, id in pairs(PlayerData[Data].CatalogAccessory) do
+				local nid = tonumber(id)
+				local alreadyInBundle = curBundle and curBundle["Accessory"] and (table.find(curBundle["Accessory"], nid) or table.find(curBundle["Accessory"], tostring(nid)))
+				if not alreadyInBundle then
+					table.insert(catalogAcc, id)
+				end
+			end
 		end
-		if IsTail == true then
-			Function.HumanoidDescriptionLoader(Character, HumanoidDescriptionTail, CharacterAttachment, false, Data, nil, nil, true)
-		else
-			HumanoidDescriptionTail:Destroy()
+
+		local catalogTail = {}
+		if PlayerData[Data].CatalogTail then
+			for _, id in pairs(PlayerData[Data].CatalogTail) do
+				local nid = tonumber(id)
+				local alreadyInBundle = curBundle and curBundle["TailAccessory"] and (table.find(curBundle["TailAccessory"], nid) or table.find(curBundle["TailAccessory"], tostring(nid)))
+				if not alreadyInBundle then
+					table.insert(catalogTail, id)
+				end
+			end
+		end
+
+		local hasClothes = false
+		if PlayerData[Data].CatalogClothes then
+			for _, cVal in pairs(PlayerData[Data].CatalogClothes) do
+				if cVal and cVal ~= "" and cVal ~= "nil" and tonumber(cVal) then
+					hasClothes = true
+					break
+				end
+			end
+		end
+
+		local bAccTypes = curBundle and curBundle["AccessoryTypes"]
+
+		if #catalogAcc > 0 or hasClothes then
+			local HumanoidDescription = Instance.new("HumanoidDescription")
+			local IsAdded = Function.HumanoidDescriptionSet(catalogAcc, PlayerData[Data].CatalogClothes, HumanoidDescription, bAccTypes)
+			if IsAdded == true then
+				Function.HumanoidDescriptionLoader(Character, HumanoidDescription, CharacterAttachment, false, Data, nil, nil)
+			else
+				pcall(function() HumanoidDescription:Destroy() end)
+			end
+		end
+
+		if #catalogTail > 0 then
+			local HumanoidDescriptionTail = Instance.new("HumanoidDescription")
+			local IsTail = Function.HumanoidDescriptionSet(catalogTail, nil, HumanoidDescriptionTail, bAccTypes)
+			if IsTail == true then
+				Function.HumanoidDescriptionLoader(Character, HumanoidDescriptionTail, CharacterAttachment, false, Data, nil, nil, true)
+			else
+				pcall(function() HumanoidDescriptionTail:Destroy() end)
+			end
 		end
 	end
 	function Function.TableFind(Table, Value)
@@ -2396,13 +2580,13 @@
 				end
 			end
 
-			if Bundle[DataDetail.CurrentBundle]["TClothes"] then
+			if Bundle[DataDetail.CurrentBundle] and Bundle[DataDetail.CurrentBundle]["TClothes"] then
 				for i, v in pairs(Bundle[DataDetail.CurrentBundle]["TClothes"]) do
 					DataDetail.HPClothes[i] = v
 				end
 			end
 
-			if Bundle[DataDetail.CurrentBundle]["NippleColor"] and DataDetail.Tone == "Use NippleColor" and DataDetail.NippleColor == nil then
+			if Bundle[DataDetail.CurrentBundle] and Bundle[DataDetail.CurrentBundle]["NippleColor"] and DataDetail.Tone == "Use NippleColor" and DataDetail.NippleColor == nil then
 				DataDetail.NippleColor = Bundle[DataDetail.CurrentBundle]["NippleColor"]
 			end
 
@@ -2418,23 +2602,30 @@
 			-- Maintain and apply character shirt and pants:
 			local isPresetWithClothes = (DataDetail.CurrentBundle ~= "nil" and DataDetail.CurrentBundle ~= "Default" and Bundle[DataDetail.CurrentBundle] and Bundle[DataDetail.CurrentBundle]["Clothes"])
 			local bClothes = isPresetWithClothes and Bundle[DataDetail.CurrentBundle]["Clothes"]
-			local savedShirtId = bClothes and bClothes.Shirt
-			local savedPantsId = bClothes and bClothes.Pants
+			local savedShirtTemplate = bClothes and (bClothes.ShirtTemplate or (typeof(bClothes.Shirt) == "string" and bClothes.Shirt:find("rbxasset") and bClothes.Shirt))
+			local savedPantsTemplate = bClothes and (bClothes.PantsTemplate or (typeof(bClothes.Pants) == "string" and bClothes.Pants:find("rbxasset") and bClothes.Pants))
+			local savedShirtId = bClothes and (tonumber(bClothes.Shirt) or (typeof(bClothes.Shirt) == "string" and tonumber(bClothes.Shirt:match("%d+"))))
+			local savedPantsId = bClothes and (tonumber(bClothes.Pants) or (typeof(bClothes.Pants) == "string" and tonumber(bClothes.Pants:match("%d+"))))
 
 			local ownAvatar = DataDetail.PlayerOwnAvatar
 			local ownShirtTemplate = (ownAvatar and ownAvatar.ShirtTemplate ~= "" and ownAvatar.ShirtTemplate)
+				or (CharacterClothesCache[Data] and CharacterClothesCache[Data].ShirtTemplate ~= "" and CharacterClothesCache[Data].ShirtTemplate)
 				or (OldCharacter and OldCharacter:FindFirstChildOfClass("Shirt") and OldCharacter:FindFirstChildOfClass("Shirt").ShirtTemplate)
 				or ""
 
 			local ownPantsTemplate = (ownAvatar and ownAvatar.PantsTemplate ~= "" and ownAvatar.PantsTemplate)
+				or (CharacterClothesCache[Data] and CharacterClothesCache[Data].PantsTemplate ~= "" and CharacterClothesCache[Data].PantsTemplate)
 				or (OldCharacter and OldCharacter:FindFirstChildOfClass("Pants") and OldCharacter:FindFirstChildOfClass("Pants").PantsTemplate)
 				or ""
 
 			local function resolveTemplate(assetId, fallbackObj, prop)
 				if assetId and tonumber(assetId) and tonumber(assetId) > 0 then
 					local num = tonumber(assetId)
-					if clothesTemplateCache and clothesTemplateCache[num] then
-						return clothesTemplateCache[num]
+					if ClothesTemplateCache[num] then
+						return ClothesTemplateCache[num]
+					end
+					if ClothesTemplateCache[tostring(num)] then
+						return ClothesTemplateCache[tostring(num)]
 					end
 					local realTex = nil
 					pcall(function()
@@ -2444,13 +2635,13 @@
 						end
 					end)
 					if realTex then
-						if not clothesTemplateCache then clothesTemplateCache = {} end
-						clothesTemplateCache[num] = realTex
+						ClothesTemplateCache[num] = realTex
+						ClothesTemplateCache[tostring(num)] = realTex
 						return realTex
 					end
 					local rbxId = "rbxassetid://" .. tostring(num)
-					if not clothesTemplateCache then clothesTemplateCache = {} end
-					clothesTemplateCache[num] = rbxId
+					ClothesTemplateCache[num] = rbxId
+					ClothesTemplateCache[tostring(num)] = rbxId
 					return rbxId
 				end
 				if fallbackObj and fallbackObj[prop] and fallbackObj[prop] ~= "" then
@@ -2462,16 +2653,44 @@
 			local finalShirtTemplate = nil
 			local finalPantsTemplate = nil
 
-			if savedShirtId and savedShirtId > 0 then
-				finalShirtTemplate = resolveTemplate(savedShirtId, nil, "ShirtTemplate")
-			elseif table.find(DataDetail.CurrentClothes, "Roblox Shirt") then
-				finalShirtTemplate = (ownShirtTemplate ~= "" and ownShirtTemplate) or nil
+			if savedShirtTemplate and not savedShirtTemplate:find("rbxasset") and not savedShirtTemplate:find("http") and tonumber(savedShirtTemplate) then
+				savedShirtId = tonumber(savedShirtTemplate)
+				savedShirtTemplate = nil
+			end
+			if savedPantsTemplate and not savedPantsTemplate:find("rbxasset") and not savedPantsTemplate:find("http") and tonumber(savedPantsTemplate) then
+				savedPantsId = tonumber(savedPantsTemplate)
+				savedPantsTemplate = nil
 			end
 
-			if savedPantsId and savedPantsId > 0 then
+			-- Load cached template first ("load normal"), with Roblox asset ID as fallback:
+			if savedShirtTemplate and savedShirtTemplate ~= "" then
+				finalShirtTemplate = savedShirtTemplate
+				if savedShirtId and tonumber(savedShirtId) then
+					ClothesTemplateCache[tonumber(savedShirtId)] = savedShirtTemplate
+					ClothesTemplateCache[tostring(savedShirtId)] = savedShirtTemplate
+				end
+			elseif savedShirtId and savedShirtId > 0 then
+				finalShirtTemplate = resolveTemplate(savedShirtId, nil, "ShirtTemplate")
+			elseif table.find(DataDetail.CurrentClothes, "Roblox Shirt") then
+				finalShirtTemplate = (ownShirtTemplate ~= "" and ownShirtTemplate)
+					or resolveTemplate(ownAvatar and ownAvatar.Shirt, nil, "ShirtTemplate")
+					or (DataDetail.PlayerOwnClothes and resolveTemplate(DataDetail.PlayerOwnClothes.Shirt, nil, "ShirtTemplate"))
+					or nil
+			end
+
+			if savedPantsTemplate and savedPantsTemplate ~= "" then
+				finalPantsTemplate = savedPantsTemplate
+				if savedPantsId and tonumber(savedPantsId) then
+					ClothesTemplateCache[tonumber(savedPantsId)] = savedPantsTemplate
+					ClothesTemplateCache[tostring(savedPantsId)] = savedPantsTemplate
+				end
+			elseif savedPantsId and savedPantsId > 0 then
 				finalPantsTemplate = resolveTemplate(savedPantsId, nil, "PantsTemplate")
 			elseif table.find(DataDetail.CurrentClothes, "Roblox Pants") then
-				finalPantsTemplate = (ownPantsTemplate ~= "" and ownPantsTemplate) or nil
+				finalPantsTemplate = (ownPantsTemplate ~= "" and ownPantsTemplate)
+					or resolveTemplate(ownAvatar and ownAvatar.Pants, nil, "PantsTemplate")
+					or (DataDetail.PlayerOwnClothes and resolveTemplate(DataDetail.PlayerOwnClothes.Pants, nil, "PantsTemplate"))
+					or nil
 			end
 
 			if finalShirtTemplate and finalShirtTemplate ~= "" then
@@ -2492,7 +2711,7 @@
 				end
 			end
 
-			if DataDetail.CurrentBundle ~= "nil" and (not Bundle[DataDetail.CurrentBundle]["Override"] or Bundle[DataDetail.CurrentBundle]["Override"] == false) then
+			if DataDetail.CurrentBundle ~= "nil" and DataDetail.CurrentBundle ~= nil and Bundle[DataDetail.CurrentBundle] and (not Bundle[DataDetail.CurrentBundle]["Override"] or Bundle[DataDetail.CurrentBundle]["Override"] == false) then
 
 				if DataDetail.CurrentBundle ~= "Bald" then
 
@@ -2509,7 +2728,7 @@
 				Function.BodyColorForceSet(Character, DataDetail.SkinTone)
 			end
 
-			if DataDetail.CurrentBundle ~= "nil" and Bundle[DataDetail.CurrentBundle]["Override"] == true then
+			if DataDetail.CurrentBundle ~= "nil" and DataDetail.CurrentBundle ~= nil and Bundle[DataDetail.CurrentBundle] and Bundle[DataDetail.CurrentBundle]["Override"] == true then
 
 				if TShirt then
 					if DataDetail.OldestClothings.ShirtGraphic == nil then

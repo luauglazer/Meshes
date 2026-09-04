@@ -1388,7 +1388,7 @@
 					local SpecialMesh = Property.SpecialMesh
 					local Weld = Property.Weld
 
-					local PAttachCFrame = AttachmentCFrame[PAttach.Name]
+					local PAttachCFrame = (PAttach and PAttach.CFrame) or (PAttach and AttachmentCFrame[PAttach.Name]) or CFrame.new()
 
 					local CalcSize = Base.Size
 					local BodySize = BodyPartSize[Base.Name]
@@ -1408,8 +1408,10 @@
 					elseif Base.Name == "Head" and Base:IsA("MeshPart") then
 						if Base:FindFirstChild("OriginalSize") then
 							BodySize = Base:FindFirstChild("OriginalSize").Value
-						else
+						elseif CalcSize.X <= 1.5 and CalcSize.Y >= 1.1 then
 							BodySize = BodyPartSize["HeadMeshFix"]
+						else
+							BodySize = BodyPartSize["Head"]
 						end
 					elseif Base.Name == "Head" and Base:FindFirstChildOfClass("SpecialMesh") then
 						local SM:SpecialMesh = Base:FindFirstChildOfClass("SpecialMesh")
@@ -1463,6 +1465,12 @@
 						ZMultiply = ZMultiply*ZMS
 					end
 
+					if Base.Name == "Head" then
+						XMultiply = 1
+						YMultiply = 1
+						ZMultiply = 1
+					end
+
 					if PlayerData[PlayerName].RealtimeBodyTransparency == true and Method ~= 2 and Method ~= 3 then
 						Part.Transparency = Base.Transparency
 					end
@@ -1500,13 +1508,25 @@
 					end
 
 					if PlayerData[PlayerName].AccessorySizeLock == false then
-						Part.Size = Vector3.new(Size.X * XMultiply, Size.Y * YMultiply, Size.Z * ZMultiply)
-						SpecialMesh.Scale = Vector3.new(Scale.X * XMultiply, Scale.Y * YMultiply, Scale.Z * ZMultiply)
-						if not PlayerData[PlayerName].CurrentPartList.physicsTails[Part.Parent] then
-							Attach.CFrame = CFrame.new(CF.Position.X * XMultiply, CF.Position.Y * YMultiply, CF.Position.Z * ZMultiply) * CF.Rotation
-							PAttach.CFrame = CFrame.new(PAttachCFrame.Position.X * XMultiply, PAttachCFrame.Position.Y * YMultiply, PAttachCFrame.Position.Z * ZMultiply) * PAttachCFrame.Rotation
-							Weld.C0 = Attach.CFrame
-							Weld.C1 = PAttach.CFrame
+						if not Property.HasSavedPos then
+							Part.Size = Vector3.new(Size.X * XMultiply, Size.Y * YMultiply, Size.Z * ZMultiply)
+							if SpecialMesh then
+								SpecialMesh.Scale = Vector3.new(Scale.X * XMultiply, Scale.Y * YMultiply, Scale.Z * ZMultiply)
+							end
+							if not PlayerData[PlayerName].CurrentPartList.physicsTails[Part.Parent] then
+								local targetC0 = CFrame.new(CF.Position.X * XMultiply, CF.Position.Y * YMultiply, CF.Position.Z * ZMultiply) * CF.Rotation
+								local pCF = Property.ParentCFrame or (PAttach and AttachmentCFrame[PAttach.Name]) or (PAttach and PAttach.CFrame) or CFrame.new()
+								local targetC1 = CFrame.new(pCF.Position.X * XMultiply, pCF.Position.Y * YMultiply, pCF.Position.Z * ZMultiply) * pCF.Rotation
+								if Attach.CFrame ~= targetC0 then
+									Attach.CFrame = targetC0
+								end
+								if Weld.C0 ~= targetC0 then
+									Weld.C0 = targetC0
+								end
+								if Weld.C1 ~= targetC1 then
+									Weld.C1 = targetC1
+								end
+							end
 						end
 					end
 				end

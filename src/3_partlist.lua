@@ -638,15 +638,13 @@
 				Decal.Name = "Areola Decal".." "..tostring(i)
 				PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-				if Extra.Tone == "Dark" then
+				if Extra.NippleColor ~= nil then
+					Decal.Color3 = Extra.NippleColor
+				elseif Extra.Tone == "Dark" then
 					local H,S,V = ObjectInstance.Color:ToHSV()
 					local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 					Decal.Color3 = DarkerColorCode
-				elseif Extra.Tone == "Use NippleColor" then
-					if Extra.NippleColor ~= nil then
-						Decal.Color3 = Extra.NippleColor
-					end
 				end
 			end
 		else
@@ -659,15 +657,13 @@
 				Decal.Name = "Areola Decal".." "..tostring(i)
 				PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-				if Extra.Tone == "Dark" then
+				if Extra.NippleColor ~= nil then
+					Decal.Color3 = Extra.NippleColor
+				elseif Extra.Tone == "Dark" then
 					local H,S,V = ObjectInstance.Color:ToHSV()
 					local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 					Decal.Color3 = DarkerColorCode
-				elseif Extra.Tone == "Use NippleColor" then
-					if Extra.NippleColor ~= nil then
-						Decal.Color3 = Extra.NippleColor
-					end
 				end
 			end
 		end
@@ -682,15 +678,13 @@
 			Decal.Name = "Areola Decal"
 			PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-			if Extra.Tone == "Dark" then
+			if Extra.NippleColor ~= nil then
+				Decal.Color3 = Extra.NippleColor
+			elseif Extra.Tone == "Dark" then
 				local H,S,V = ObjectInstance.Color:ToHSV()
 				local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 				Decal.Color3 = DarkerColorCode
-			elseif Extra.Tone == "Use NippleColor" then
-				if Extra.NippleColor ~= nil then
-					Decal.Color3 = Extra.NippleColor
-				end
 			end
 		else
 			local Decal = Instance.new("Decal", ObjectInstance)
@@ -701,15 +695,13 @@
 			Decal.Name = "Areola Decal"
 			PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-			if Extra.Tone == "Dark" then
+			if Extra.NippleColor ~= nil then
+				Decal.Color3 = Extra.NippleColor
+			elseif Extra.Tone == "Dark" then
 				local H,S,V = ObjectInstance.Color:ToHSV()
 				local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 				Decal.Color3 = DarkerColorCode
-			elseif Extra.Tone == "Use NippleColor" then
-				if Extra.NippleColor ~= nil then
-					Decal.Color3 = Extra.NippleColor
-				end
 			end
 		end
 	end
@@ -723,15 +715,13 @@
 			Decal.Name = "Areola Decal"
 			PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-			if Extra.Tone == "Dark" then
+			if Extra.NippleColor ~= nil then
+				Decal.Color3 = Extra.NippleColor
+			elseif Extra.Tone == "Dark" then
 				local H,S,V = ObjectInstance.Color:ToHSV()
 				local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 				Decal.Color3 = DarkerColorCode
-			elseif Extra.Tone == "Use NippleColor" then
-				if Extra.NippleColor ~= nil then
-					Decal.Color3 = Extra.NippleColor
-				end
 			end
 		else
 			local Decal = Instance.new("Decal", ObjectInstance)
@@ -742,15 +732,13 @@
 			Decal.Name = "Areola Decal"
 			PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-			if Extra.Tone == "Dark" then
+			if Extra.NippleColor ~= nil then
+				Decal.Color3 = Extra.NippleColor
+			elseif Extra.Tone == "Dark" then
 				local H,S,V = ObjectInstance.Color:ToHSV()
 				local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 				Decal.Color3 = DarkerColorCode
-			elseif Extra.Tone == "Use NippleColor" then
-				if Extra.NippleColor ~= nil then
-					Decal.Color3 = Extra.NippleColor
-				end
 			end
 		end
 	end
@@ -762,15 +750,13 @@
 		Decal.ColorMap = "rbxassetid://13779954418.png"
 		Decal.Name = "Areola Decal"
 
-		if Extra.Tone == "Dark" then
+		if Extra.NippleColor ~= nil then
+			Decal.Color = Extra.NippleColor
+		elseif Extra.Tone == "Dark" then
 			local H,S,V = ObjectInstance.Color:ToHSV()
 			local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 			Decal.Color = DarkerColorCode
-		elseif Extra.Tone == "Use NippleColor" then
-			if Extra.NippleColor ~= nil then
-				Decal.Color = Extra.NippleColor
-			end
 		end]]
 
 		if not table.find(PlayerData[Data].CurrentClothes, "Roblox Breasts Clothing") and ObjectInstance.Transparency ~= 1 or table.find(PlayerData[Data].CurrentClothes, "Roblox Breasts Clothing") and (ObjectInstance.Name ~= "Left Breast" and ObjectInstance.Name ~= "Right Breast") and ObjectInstance.Transparency ~= 1 then
@@ -781,15 +767,13 @@
 			Decal.Name = "Areola Decal"
 			PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-			if Extra.Tone == "Dark" then
+			if Extra.NippleColor ~= nil then
+				Decal.Color3 = Extra.NippleColor
+			elseif Extra.Tone == "Dark" then
 				local H,S,V = ObjectInstance.Color:ToHSV()
 				local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 				Decal.Color3 = DarkerColorCode
-			elseif Extra.Tone == "Use NippleColor" then
-				if Extra.NippleColor ~= nil then
-					Decal.Color3 = Extra.NippleColor
-				end
 			end
 		else
 			local Decal = Instance.new("Decal", ObjectInstance)
@@ -800,15 +784,13 @@
 			Decal.Name = "Areola Decal"
 			PlayerData[Data].CurrentPartList.AreolaDecal[Decal] = ObjectInstance
 
-			if Extra.Tone == "Dark" then
+			if Extra.NippleColor ~= nil then
+				Decal.Color3 = Extra.NippleColor
+			elseif Extra.Tone == "Dark" then
 				local H,S,V = ObjectInstance.Color:ToHSV()
 				local DarkerColorCode = Color3.fromHSV(H,S,V+(-DarkerColorPercentage * V/100))
 
 				Decal.Color3 = DarkerColorCode
-			elseif Extra.Tone == "Use NippleColor" then
-				if Extra.NippleColor ~= nil then
-					Decal.Color3 = Extra.NippleColor
-				end
 			end
 		end
 	end
