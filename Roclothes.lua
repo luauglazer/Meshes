@@ -2,7 +2,7 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local SoundService = game:GetService("SoundService")
 
-local ASSET_ICON = "rbxassetid://126027056432287"
+local ASSET_ICON = "rbxassetid://10217577445"
 local ASSET_SOUND = "rbxassetid://106825898931973"
 local SCRIPT_URL = "https://raw.githubusercontent.com/luauglazer/Meshes/refs/heads/main/init.lua"
 local DISPLAY_DURATION = 2
