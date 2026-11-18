@@ -8,7 +8,7 @@ local SCRIPT_URL = "https://raw.githubusercontent.com/luauglazer/Meshes/refs/hea
 local DISPLAY_DURATION = 2
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "PurrwTeamLoader"
+screenGui.Name = "MisaTeamLoader"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 
@@ -39,7 +39,7 @@ label.Position = UDim2.new(0.5, 0, 1, 0)
 label.Size = UDim2.new(1, 0, 0, 30)
 label.BackgroundTransparency = 1
 label.Font = Enum.Font.GothamBold
-label.Text = "Purrw team made in brazil"
+label.Text = "Misa team made in brazil"
 label.TextColor3 = Color3.fromRGB(255, 255, 255)
 label.TextSize = 20
 label.TextStrokeTransparency = 0.5
