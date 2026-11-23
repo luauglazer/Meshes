@@ -2072,7 +2072,7 @@
 				for Object, Property in pairs(ParentTransparencyList) do
 					local D = Property.D
 					if D ~= nil then
-						if Object.Name ~= "HumanoidRootPart" then
+						if Object.Name ~= "HumanoidRootPart" and not string.find(string.lower(Object.Name), "collision") then
 							Object.Transparency = D
 							Object.LocalTransparencyModifier = Object.Transparency
 						end
@@ -2082,7 +2082,7 @@
 			
 			if PartListPlayer.OriginalTransparency then
 				for i, v in pairs(PartListPlayer.OriginalTransparency) do
-					if i.Name ~= "HumanoidRootPart" then
+					if i.Name ~= "HumanoidRootPart" and not string.find(string.lower(i.Name), "collision") then
 						i.Transparency = v
 						i.LocalTransparencyModifier = v
 					end
@@ -2122,13 +2122,15 @@
 					end
 				end
 
-				-- Restore base character body parts and genuine accessories (strictly keep HumanoidRootPart invisible!)
+				-- Restore base character body parts and genuine accessories (strictly keep HumanoidRootPart and collision parts invisible!)
 				for _, v in ipairs(char:GetChildren()) do
 					if v:IsA("BasePart") then
-						if v.Name == "HumanoidRootPart" then
+						if v.Name == "HumanoidRootPart" or string.find(string.lower(v.Name), "collision") then
 							v.Transparency = 1
 							v.LocalTransparencyModifier = 1
-							v.CanCollide = false
+							if v.Name == "HumanoidRootPart" then
+								v.CanCollide = false
+							end
 						else
 							v.Transparency = 0
 							v.LocalTransparencyModifier = 0
