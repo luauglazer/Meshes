@@ -556,8 +556,10 @@
 			if PlayerData[SelectPlayer].RealtimeBodyTransparency == false then
 				if PlayerData[SelectPlayer].CurrentPartList.OriginalTransparency then
 					for i, v in pairs(PlayerData[SelectPlayer].CurrentPartList.OriginalTransparency) do
-						i.Transparency = v
-						i.LocalTransparencyModifier = v
+						if i.Name ~= "HumanoidRootPart" and not string.find(string.lower(i.Name), "collision") then
+							i.Transparency = v
+							i.LocalTransparencyModifier = v
+						end
 					end
 				end
 			end
